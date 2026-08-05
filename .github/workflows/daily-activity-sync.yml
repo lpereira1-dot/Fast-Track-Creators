@@ -1,0 +1,43 @@
+name: Daily activity sync (dashboard data)
+
+# Refreshes daily posts/sales/GMV for every known creator so the retention
+# dashboard's pre/post gift-card windows stay current as time passes.
+
+on:
+  schedule:
+    - cron: "0 11 * * *" # 06:00 America/New_York (11:00 UTC) daily
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      - name: Restore state database
+        uses: actions/cache@v4
+        with:
+          path: data/fast_track.db
+          key: fast-track-db-${{ github.run_id }}
+          restore-keys: |
+            fast-track-db-
+
+      - name: Sync activity history
+        env:
+          CREATORIQ_BASE_URL: ${{ secrets.CREATORIQ_BASE_URL }}
+          CREATORIQ_API_KEY: ${{ secrets.CREATORIQ_API_KEY }}
+        run: fast-track sync-activity
+
+      - name: Upload state database artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fast-track-db
+          path: data/fast_track.db
+          retention-days: 90

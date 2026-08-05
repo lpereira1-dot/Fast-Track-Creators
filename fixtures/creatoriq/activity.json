@@ -1,0 +1,1145 @@
+{
+  "data": [
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-05-03",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-05-11",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-05-14",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-05-21",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-03",
+      "Posts": 1,
+      "Sales": 1,
+      "GMV": 49.32
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-05",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-06",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-09",
+      "Posts": 1,
+      "Sales": 1,
+      "GMV": 55.53
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-10",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 77.85
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-11",
+      "Posts": 2,
+      "Sales": 1,
+      "GMV": 92.91
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-12",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-14",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-16",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-17",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-18",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-20",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-23",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-24",
+      "Posts": 1,
+      "Sales": 1,
+      "GMV": 24.71
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-25",
+      "Posts": 2,
+      "Sales": 1,
+      "GMV": 88.05
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-28",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-06-29",
+      "Posts": 2,
+      "Sales": 1,
+      "GMV": 108.48
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-01",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-02",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-03",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-04",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-05",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-06",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-07",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-09",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-11",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-12",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-14",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-15",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-19",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-20",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-21",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-23",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-24",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-25",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 43.8
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-27",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-28",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-29",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-07-30",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-08-01",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 60.26
+    },
+    {
+      "PublisherId": "c-1001",
+      "Date": "2026-08-02",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1002",
+      "Date": "2026-05-11",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1002",
+      "Date": "2026-05-21",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1002",
+      "Date": "2026-06-07",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1002",
+      "Date": "2026-06-20",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1002",
+      "Date": "2026-07-19",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1003",
+      "Date": "2026-05-12",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1003",
+      "Date": "2026-05-19",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1003",
+      "Date": "2026-05-20",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1003",
+      "Date": "2026-06-09",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1003",
+      "Date": "2026-06-12",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1003",
+      "Date": "2026-06-13",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1003",
+      "Date": "2026-06-18",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1003",
+      "Date": "2026-06-21",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1003",
+      "Date": "2026-07-04",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1003",
+      "Date": "2026-07-17",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1003",
+      "Date": "2026-08-02",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 65.06
+    },
+    {
+      "PublisherId": "c-1004",
+      "Date": "2026-06-24",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1004",
+      "Date": "2026-07-06",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1004",
+      "Date": "2026-07-14",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1004",
+      "Date": "2026-07-17",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1004",
+      "Date": "2026-07-31",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-05-20",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-06-04",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-06-10",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-06-19",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-06-20",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-06-22",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-06-24",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-06-27",
+      "Posts": 2,
+      "Sales": 1,
+      "GMV": 52.56
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-06-28",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-06-29",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-01",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-02",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-04",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-05",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-06",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-08",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 42.16
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-11",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-13",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-14",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-21",
+      "Posts": 1,
+      "Sales": 1,
+      "GMV": 73.41
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-22",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-23",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 106.85
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-24",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-25",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-27",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 26.53
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-28",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-29",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-07-30",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 44.82
+    },
+    {
+      "PublisherId": "c-1005",
+      "Date": "2026-08-05",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 116.01
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-05-27",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-05-31",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-06-12",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-06-20",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-06-21",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-06-24",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-06-26",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 65.89
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-06-30",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-07-04",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-07-11",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-07-15",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-07-18",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-07-20",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 44.48
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-07-30",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1006",
+      "Date": "2026-08-02",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-06-18",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-06-22",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-06-24",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-06-27",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-06-28",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 67.87
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-01",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-02",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-03",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-04",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 99.61
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-05",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-06",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-07",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 27.9
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-09",
+      "Posts": 2,
+      "Sales": 1,
+      "GMV": 66.11
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-10",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-12",
+      "Posts": 2,
+      "Sales": 1,
+      "GMV": 64.17
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-13",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-15",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-16",
+      "Posts": 1,
+      "Sales": 1,
+      "GMV": 58.14
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-17",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-18",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-19",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-23",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-24",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-28",
+      "Posts": 1,
+      "Sales": 1,
+      "GMV": 56.49
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-29",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-07-30",
+      "Posts": 1,
+      "Sales": 1,
+      "GMV": 73.94
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-08-02",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-08-03",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1007",
+      "Date": "2026-08-04",
+      "Posts": 1,
+      "Sales": 1,
+      "GMV": 116.65
+    },
+    {
+      "PublisherId": "c-1008",
+      "Date": "2026-05-28",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1008",
+      "Date": "2026-06-07",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1008",
+      "Date": "2026-07-06",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1008",
+      "Date": "2026-07-24",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1009",
+      "Date": "2026-06-27",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1009",
+      "Date": "2026-07-04",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1009",
+      "Date": "2026-07-05",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1009",
+      "Date": "2026-07-10",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1009",
+      "Date": "2026-07-20",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1009",
+      "Date": "2026-07-26",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1009",
+      "Date": "2026-07-30",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1009",
+      "Date": "2026-07-31",
+      "Posts": 1,
+      "Sales": 1,
+      "GMV": 56.5
+    },
+    {
+      "PublisherId": "c-1009",
+      "Date": "2026-08-01",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1009",
+      "Date": "2026-08-03",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1009",
+      "Date": "2026-08-05",
+      "Posts": 0,
+      "Sales": 1,
+      "GMV": 62.11
+    },
+    {
+      "PublisherId": "c-1011",
+      "Date": "2026-07-14",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1011",
+      "Date": "2026-07-22",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1011",
+      "Date": "2026-07-28",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1012",
+      "Date": "2026-07-05",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1012",
+      "Date": "2026-07-21",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1012",
+      "Date": "2026-07-24",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1012",
+      "Date": "2026-07-30",
+      "Posts": 1,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1012",
+      "Date": "2026-08-04",
+      "Posts": 2,
+      "Sales": 0,
+      "GMV": 0.0
+    },
+    {
+      "PublisherId": "c-1012",
+      "Date": "2026-08-05",
+      "Posts": 2,
+      "Sales": 1,
+      "GMV": 21.87
+    }
+  ]
+}

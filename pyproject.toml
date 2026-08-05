@@ -1,0 +1,47 @@
+[project]
+name = "fast-track-creators"
+version = "0.1.0"
+description = "Automates the Fast Track creator gift-card program: weekly activation cohorts, gift-card ordering sheet sync, and a pre/post retention dashboard."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+    "python-dotenv>=1.0",
+    "gspread>=6.1",
+    "google-auth>=2.29",
+    "pandas>=2.2",
+    "streamlit>=1.35",
+    "plotly>=5.22",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-cov>=5.0",
+    "freezegun>=1.5",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+fast-track = "fast_track.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/generate_fixtures.py" = ["E501"]
