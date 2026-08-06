@@ -105,15 +105,21 @@ account**, which surfaced a few things worth knowing:
   `RecruitingStarted`) so the client can stop as soon as it pages past the
   lookback window, rather than scanning the entire publisher list (large
   accounts can have 900k+ publishers total).
-- **First-post completion comes from campaign membership, not an
-  "activation report" endpoint.** `GET /crm/v1/api/publisher/{id}/campaigns`
-  returns each campaign a publisher belongs to, and a membership's
-  `DateRequirementsCompleted` field is set once they've fulfilled that
+- **First-post completion comes from a campaign's publisher roster, not an
+  "activation report" endpoint.** `GET /crm/v1/api/campaign/{id}/publishers`
+  returns every publisher in that Campaign, and each entry's
+  `DateRequirementsCompleted` field is set once they've fulfilled the
   campaign's post requirements. Set **`CREATORIQ_CAMPAIGN_ID`** to the
-  CampaignId your Fast Track creators are added to/required to post
-  for — without it, `fetch_activation` returns no data (with a warning) since
-  a creator may belong to many unrelated campaigns and there's no way to
-  know which membership matters.
+  CampaignId your Fast Track creators are added to/required to post for —
+  without it, `fetch_activation` returns no data (with a warning) since a
+  creator may belong to many unrelated campaigns. The whole roster is
+  fetched once per run and looked up in-memory rather than calling
+  per-publisher, since with a few thousand new creators a week that both
+  hits CreatorIQ's rate limit (`429`) and is much slower — one roster call
+  covered a 283-creator campaign fully in testing. Note: this endpoint's
+  `page` param doesn't reliably paginate on the account this was tested
+  against (it just returns the same roster every time), so the client
+  walks pages defensively and stops once a page adds no new publisher ids.
 - **First-sale / daily activity (GMV) is not wired up yet.** The CRM API's
   `GET /crm/v1/api/campaign/{campaignId}/publisher/{publisherId}/conversionMetrics`
   endpoint exists, but only exposes *current cumulative* values (e.g.

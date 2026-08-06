@@ -200,27 +200,50 @@ class CreatorIQClient:
 
         return creators
 
-    def _publisher_campaign_membership(self, publisher_id: str, campaign_id: str) -> dict | None:
+    def _fetch_campaign_roster(self, campaign_id: str) -> dict[str, dict]:
+        """All publisher memberships in a Campaign, keyed by PublisherId.
+
+        `GET /campaign/{id}/publishers` returns entries as a dict keyed by
+        stringified indices (with a couple of stray non-publisher metadata
+        keys mixed in, which are skipped). Its `page` param doesn't
+        reliably paginate on the account this was confirmed against -- it
+        just returns the same full roster every time -- so we walk pages
+        defensively and stop as soon as one adds no new publisher ids,
+        which is correct whether or not `page` actually works.
+        """
+
         cfg = self._config
-        url = cfg.base_url.rstrip("/") + cfg.publisher_campaigns_path.format(publisher_id=publisher_id)
-        response = self._session.get(url, headers=self._headers(), timeout=cfg.timeout_seconds)
-        response.raise_for_status()
-        payload = response.json()
-        for item in payload.get("CampaignCollection", []):
-            membership = item.get("PublisherInCampaign", {})
-            if str(membership.get("CampaignId")) == str(campaign_id):
-                return membership
-        return None
+        url = cfg.base_url.rstrip("/") + cfg.campaign_publishers_path.format(campaign_id=campaign_id)
+        roster: dict[str, dict] = {}
+        for page in range(1, cfg.campaign_roster_max_pages + 1):
+            response = self._session.get(
+                url, headers=self._headers(), params={"page": page}, timeout=cfg.timeout_seconds
+            )
+            response.raise_for_status()
+            entries = response.json().get("CampaignPublisher", {})
+            if not isinstance(entries, dict) or not entries:
+                break
+            new_count = 0
+            for entry in entries.values():
+                if not isinstance(entry, dict) or "PublisherId" not in entry:
+                    continue
+                publisher_id = str(entry["PublisherId"])
+                if publisher_id not in roster:
+                    new_count += 1
+                roster[publisher_id] = entry
+            if new_count == 0:
+                break
+        return roster
 
     def fetch_activation(self, creator_ids: list[str]) -> list[ActivationRecord]:
         """First-post completion, derived from campaign-membership data.
 
         CreatorIQ doesn't expose a generic "activation report" endpoint;
         instead, each publisher's membership in a specific Campaign (fetched
-        via `GET /publisher/{id}/campaigns`) has a `DateRequirementsCompleted`
+        via `GET /campaign/{id}/publishers`) has a `DateRequirementsCompleted`
         field once they've fulfilled that campaign's post requirements. Set
         `CREATORIQ_CAMPAIGN_ID` to the CampaignId Fast Track creators are
-        added to so this can identify the right membership.
+        added to so this can identify the right roster.
 
         First-sale detection isn't wired up yet: the CRM API's
         `conversionMetrics` endpoint only exposes current cumulative values
@@ -239,22 +262,26 @@ class CreatorIQClient:
             )
             return []
 
+        try:
+            roster = self._fetch_campaign_roster(cfg.campaign_id)
+        except requests.RequestException as exc:
+            logger.warning("Failed to fetch campaign %s roster: %s", cfg.campaign_id, exc)
+            return []
+        logger.info("Fetched %d publisher(s) from campaign %s roster", len(roster), cfg.campaign_id)
+
         records: list[ActivationRecord] = []
         for creator_id in creator_ids:
-            try:
-                membership = self._publisher_campaign_membership(creator_id, cfg.campaign_id)
-            except requests.RequestException as exc:
-                logger.warning(
-                    "Failed to fetch campaign membership for publisher %s: %s", creator_id, exc
-                )
-                continue
+            membership = roster.get(str(creator_id))
             if membership is None:
+                continue
+            first_post_at = membership.get("DateRequirementsCompleted")
+            if not first_post_at:
                 continue
             records.append(
                 ActivationRecord.from_api(
                     {
                         "creator_id": creator_id,
-                        "first_post_at": membership.get("DateRequirementsCompleted"),
+                        "first_post_at": first_post_at,
                         "first_sale_at": None,
                     }
                 )

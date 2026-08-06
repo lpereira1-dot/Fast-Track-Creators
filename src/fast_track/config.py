@@ -114,14 +114,24 @@ class CreatorIQConfig:
         default_factory=lambda: _env_float("CREATORIQ_VIEW_POLL_TIMEOUT_SECONDS", 60.0)
     )
 
-    # Path (relative to base_url) for a single publisher's campaign
-    # memberships, used to derive "first post" completion from that
-    # membership's `DateRequirementsCompleted` field. `{publisher_id}` is
-    # substituted in.
-    publisher_campaigns_path: str = field(
+    # Path (relative to base_url) for a Campaign's full publisher roster,
+    # used to derive "first post" completion from each membership's
+    # `DateRequirementsCompleted` field. `{campaign_id}` is substituted in.
+    # Confirmed to return the *entire* roster in one call for a
+    # program-sized campaign (its `page` param doesn't reliably paginate),
+    # so this is fetched once per run and looked up in-memory rather than
+    # calling per-publisher (which is both slow and easy to rate-limit at
+    # ~1000s of creators).
+    campaign_publishers_path: str = field(
         default_factory=lambda: _env_str(
-            "CREATORIQ_PUBLISHER_CAMPAIGNS_PATH", "/crm/v1/api/publisher/{publisher_id}/campaigns"
+            "CREATORIQ_CAMPAIGN_PUBLISHERS_PATH", "/crm/v1/api/campaign/{campaign_id}/publishers"
         )
+    )
+    # Safety cap on how many roster pages to walk (stops automatically once
+    # a page adds no new publisher ids -- this just bounds the worst case
+    # if an account's `page` param actually works and the roster is huge).
+    campaign_roster_max_pages: int = field(
+        default_factory=lambda: _env_int("CREATORIQ_CAMPAIGN_ROSTER_MAX_PAGES", 50)
     )
 
     # The CreatorIQ CampaignId that Fast Track creators are added to and

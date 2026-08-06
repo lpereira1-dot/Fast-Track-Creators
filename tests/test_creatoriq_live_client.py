@@ -36,7 +36,7 @@ class FakeSession:
     def __init__(self):
         self.calls: list[tuple[str, dict]] = []
         self.view_results_by_skip: dict[int, dict] = {}
-        self.campaign_collections_by_publisher: dict[str, dict] = {}
+        self.campaign_roster_pages: dict[str, list[dict]] = {}
 
     def get(self, url, headers=None, params=None, timeout=None):
         self.calls.append((url, dict(params or {})))
@@ -52,13 +52,13 @@ class FakeSession:
         if url.startswith("https://fake-results/"):
             skip = int(url.rsplit("/", 1)[-1].split(".")[0])
             return FakeResponse(self.view_results_by_skip.get(skip, {"results": []}))
-        if "/publisher/" in url and url.endswith("/campaigns"):
-            publisher_id = url.split("/publisher/")[1].split("/campaigns")[0]
-            return FakeResponse(
-                self.campaign_collections_by_publisher.get(
-                    publisher_id, {"CampaignCollection": []}
-                )
-            )
+        if "/campaign/" in url and url.endswith("/publishers"):
+            campaign_id = url.split("/campaign/")[1].split("/publishers")[0]
+            page = params["page"]
+            pages = self.campaign_roster_pages.get(campaign_id, [])
+            entries = pages[page - 1] if page - 1 < len(pages) else []
+            body = {str(i): entry for i, entry in enumerate(entries)}
+            return FakeResponse({"CampaignPublisher": body})
         raise AssertionError(f"Unexpected URL requested: {url}")
 
 
@@ -140,27 +140,17 @@ def test_fetch_new_creators_stops_when_page_is_short():
     assert len(view_calls) == 1
 
 
-def test_fetch_activation_uses_matching_campaign_membership():
+def test_fetch_activation_uses_matching_campaign_roster_entry():
     session = FakeSession()
-    session.campaign_collections_by_publisher["10"] = {
-        "CampaignCollection": [
-            {
-                "PublisherInCampaign": {
-                    "CampaignId": 999,
-                    "DateRequirementsCompleted": "2026-01-01",
-                }
-            },
-            {
-                "PublisherInCampaign": {
-                    "CampaignId": 555,
-                    "DateRequirementsCompleted": "2026-07-30",
-                }
-            },
+    session.campaign_roster_pages["555"] = [
+        [
+            {"PublisherId": 10, "DateRequirementsCompleted": "2026-07-30"},
+            {"PublisherId": 11, "DateRequirementsCompleted": None},
         ]
-    }
+    ]
     client = CreatorIQClient(_config(campaign_id="555"), session=session)
 
-    records = client.fetch_activation(["10"])
+    records = client.fetch_activation(["10", "11", "12"])
 
     assert len(records) == 1
     assert records[0].creator_id == "10"
@@ -168,16 +158,30 @@ def test_fetch_activation_uses_matching_campaign_membership():
     assert records[0].first_sale_at is None
 
 
-def test_fetch_activation_skips_publisher_not_in_target_campaign():
+def test_fetch_activation_skips_publisher_not_in_campaign_roster():
     session = FakeSession()
-    session.campaign_collections_by_publisher["10"] = {
-        "CampaignCollection": [
-            {"PublisherInCampaign": {"CampaignId": 999, "DateRequirementsCompleted": "2026-01-01"}}
-        ]
-    }
+    session.campaign_roster_pages["555"] = [
+        [{"PublisherId": 99, "DateRequirementsCompleted": "2026-01-01"}]
+    ]
     client = CreatorIQClient(_config(campaign_id="555"), session=session)
 
     assert client.fetch_activation(["10"]) == []
+
+
+def test_fetch_activation_stops_paging_roster_when_no_new_ids():
+    session = FakeSession()
+    # Simulates the real account's behavior: `page` doesn't advance, so
+    # page 2 repeats page 1's entries -- the roster walk should stop there
+    # rather than treating it as page-size-many-more-to-go.
+    same_page = [{"PublisherId": 10, "DateRequirementsCompleted": "2026-07-30"}]
+    session.campaign_roster_pages["555"] = [same_page, same_page, same_page]
+    client = CreatorIQClient(_config(campaign_id="555"), session=session)
+
+    records = client.fetch_activation(["10"])
+
+    assert len(records) == 1
+    roster_calls = [c for c in session.calls if c[0].endswith("/publishers")]
+    assert len(roster_calls) == 2  # page 1, then page 2 confirms no new ids and stops
 
 
 def test_fetch_activation_returns_empty_without_campaign_id():
