@@ -224,6 +224,35 @@ retention window (default 30 days) before/after that date:
 Filters in the sidebar let you slice by milestone type, cohort week, and
 adjust the retention window on the fly.
 
+### Deploying the dashboard so there's a real, shareable link
+
+Running it locally (`fast-track dashboard`) only gives you a `localhost`
+URL. To get an actual link your team can open, deploy it to
+[Streamlit Community Cloud](https://share.streamlit.io) (free):
+
+1. Go to share.streamlit.io → **New app** → pick this repo/branch and set
+   the main file path to `src/fast_track/dashboard/app.py`.
+2. Before (or after) deploying, open the app's **Settings → Secrets** and
+   paste in values based on `.streamlit/secrets.toml.example` (copy that
+   file's contents, fill in real values — `CREATORIQ_API_KEY`,
+   `CREATORIQ_CAMPAIGN_ID`, `GIFT_ORDER_SHEET_ID`,
+   `GOOGLE_SERVICE_ACCOUNT_JSON`, etc). `app.py` bridges these into regular
+   environment variables at startup, so nothing else needs to change.
+3. Also set `GITHUB_REPO` (`"owner/repo"`) and a `GITHUB_TOKEN` (a
+   fine-grained PAT with **Actions: Read-only** access to this repo). This
+   is the important one: Streamlit Cloud's filesystem is completely
+   separate from wherever `run-weekly-job`/`sync-activity` actually run
+   (GitHub Actions) — without it, the dashboard would just show "No gift
+   awards recorded yet" forever. With it, the dashboard downloads the
+   latest `fast-track-db` artifact those workflows already upload on every
+   run (see `src/fast_track/dashboard/db_sync.py`) each time it loads.
+
+Any other host that runs a `streamlit run` command works too (Render,
+Railway, Fly.io, a small VM, etc.) — the app doesn't require Streamlit
+Cloud specifically, just something to keep a Python process alive and
+reachable over HTTP; `requirements.txt` at the repo root covers dependency
+installation for platforms that don't recognize `pyproject.toml` directly.
+
 ## Scheduling
 
 Two GitHub Actions workflows are included:

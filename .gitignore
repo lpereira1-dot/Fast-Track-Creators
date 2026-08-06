@@ -16,5 +16,6 @@ data/
 .env
 service_account.json
 *service-account*.json
+.streamlit/secrets.toml
 
 .DS_Store

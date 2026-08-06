@@ -11,6 +11,7 @@ against real CreatorIQ-sourced data once the scheduled jobs have run.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -21,16 +22,62 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from fast_track.config import get_settings
-from fast_track.dashboard.metrics import (
+# When deployed on Streamlit Community Cloud, credentials are configured via
+# its "Secrets" manager (st.secrets), not real OS environment variables --
+# but the rest of this app (config.py) reads everything via os.getenv(), so
+# it works unchanged locally, in GitHub Actions, or on Streamlit Cloud.
+# Bridge one into the other here, before any fast_track module (which reads
+# env vars at import/construction time) is imported. Accessing `st.secrets`
+# raises `StreamlitSecretNotFoundError` when no secrets.toml exists at all
+# (the normal case locally/in CLI use), so this has to be guarded rather
+# than just an empty-by-default lookup.
+try:
+    _secrets = dict(st.secrets)
+except Exception:  # noqa: BLE001 -- no secrets.toml configured; nothing to bridge
+    _secrets = {}
+for _key, _value in _secrets.items():
+    os.environ.setdefault(_key, str(_value))
+
+from fast_track.config import get_settings  # noqa: E402
+from fast_track.dashboard.db_sync import sync_db_from_github_artifact  # noqa: E402
+from fast_track.dashboard.metrics import (  # noqa: E402
     build_daily_offsets,
     build_gift_events,
     retention_curve,
     summarize_retention,
 )
-from fast_track.storage.state_store import StateStore
+from fast_track.storage.state_store import StateStore  # noqa: E402
 
 st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layout="wide")
+
+
+@st.cache_data(ttl=300)
+def sync_db_from_github(db_path: str) -> str | None:
+    """Best-effort refresh from the latest GitHub Actions artifact.
+
+    The scheduled weekly-cohort/daily-activity-sync jobs run in GitHub
+    Actions, not wherever this dashboard happens to be hosted -- if
+    they're on separate infrastructure (e.g. this deployed on Streamlit
+    Community Cloud), this is what keeps the dashboard showing current
+    data instead of nothing. Set GITHUB_REPO ("owner/repo") and a
+    GITHUB_TOKEN with `actions:read` access as secrets/env vars to enable
+    it; without them, the dashboard just reads whatever's already at
+    FAST_TRACK_DB_PATH (fine for local use alongside the CLI). Returns a
+    status message to display, or None if sync wasn't configured.
+    """
+
+    repo = os.getenv("GITHUB_REPO")
+    token = os.getenv("GITHUB_TOKEN")
+    if not repo or not token:
+        return None
+    try:
+        synced = sync_db_from_github_artifact(repo, token, db_path)
+    except Exception as exc:  # noqa: BLE001 -- never let a sync hiccup crash the page
+        return f"⚠️ Could not sync from GitHub Actions ({exc}); showing local data only."
+    if synced:
+        load_data.clear()  # don't let a stale cached read shadow the freshly-synced file
+        return "✅ Synced with the latest GitHub Actions run."
+    return "ℹ️ No GitHub Actions data artifact found yet -- showing local data only."
 
 
 @st.cache_data(ttl=300)
@@ -61,6 +108,10 @@ def main() -> None:
         f"This dashboard compares creator activity {settings.program.retention_window_days} days "
         "before vs. after they received a gift card."
     )
+
+    sync_status = sync_db_from_github(settings.storage.db_path)
+    if sync_status:
+        st.caption(sync_status)
 
     awards, activity = load_data(settings.storage.db_path)
 
