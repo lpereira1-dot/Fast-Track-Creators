@@ -3,9 +3,10 @@
 These exercise the confirmed-against-a-real-account behaviors: Fast Track
 creators sourced from a Campaign's publisher roster (`DatePublisherAdded`
 as "joined"), lazy email resolution (roster id -> campaigns href -> network
-id -> publisher -> contact), and first-post detection via a locally
-persisted "first observed posting" proxy (see README "Adapting to your
-CreatorIQ account").
+id -> publisher -> contact), first-post detection via a locally persisted
+"first observed posting" proxy, and first-sale detection via real
+per-transaction dates from the e-commerce transactions endpoint (see
+README "Adapting to your CreatorIQ account").
 """
 
 from __future__ import annotations
@@ -41,9 +42,19 @@ class FakeSession:
         self.network_id_by_internal_id: dict[str, str] = {}
         self.publishers_by_network_id: dict[str, dict] = {}
         self.contacts_by_address_id: dict[str, dict] = {}
+        self.transactions: list[dict] = []
+        self.transactions_page_size = 100
 
     def get(self, url, headers=None, params=None, timeout=None):
         self.calls.append((url, dict(params or {}), dict(headers or {})))
+        if url.endswith("/ecommerce/transactions"):
+            page = params["Page"]
+            page_size = params["PageSize"]
+            start = (page - 1) * page_size
+            rows = self.transactions[start : start + page_size]
+            return FakeResponse(
+                {"count": len(self.transactions), "page": page, "size": page_size, "data": rows}
+            )
         if "/campaign/" in url and url.endswith("/publishers"):
             campaign_id = url.split("/campaign/")[1].split("/publishers")[0]
             page = params["page"]
@@ -164,14 +175,115 @@ def test_fetch_activation_returns_empty_without_campaign_id():
     assert client.fetch_activation(["10"]) == []
 
 
-def test_fetch_activation_returns_empty_without_observer():
-    client = CreatorIQClient(_config(campaign_id="555"), session=FakeSession(), first_post_observer=None)
+def test_fetch_activation_skips_first_post_but_still_checks_sales_without_observer():
+    session = FakeSession()
+    session.transactions = [
+        {"PublisherId": 10, "TransactionDate": "2026-07-30 10:00:00", "Status": "pending"},
+    ]
+    client = CreatorIQClient(_config(campaign_id="555"), session=session, first_post_observer=None)
 
-    assert client.fetch_activation(["10"]) == []
+    records = client.fetch_activation(["10"])
+
+    assert len(records) == 1
+    assert records[0].first_post_at is None
+    assert records[0].first_sale_at.date() == date(2026, 7, 30)
 
 
-def test_fetch_activity_returns_empty_not_wired_up():
-    client = CreatorIQClient(_config(campaign_id="555"), session=FakeSession())
+def test_fetch_activation_includes_first_sale_and_counts_pending_transactions():
+    session = FakeSession()
+    session.transactions = [
+        {"PublisherId": 10, "TransactionDate": "2026-08-01 09:00:00", "Status": "Approved"},
+        # Earlier, still-pending transaction should win as the *first* sale.
+        {"PublisherId": 10, "TransactionDate": "2026-07-20 22:12:30", "Status": "pending"},
+        {"PublisherId": 11, "TransactionDate": "2026-07-25 12:00:00", "Status": "pending"},
+    ]
+    client = CreatorIQClient(_config(campaign_id="555"), session=session, first_post_observer=None)
+
+    records = {r.creator_id: r for r in client.fetch_activation(["10", "11", "12"])}
+
+    assert records["10"].first_sale_at.date() == date(2026, 7, 20)
+    assert records["11"].first_sale_at.date() == date(2026, 7, 25)
+    assert "12" not in records
+
+
+def test_fetch_activation_excludes_declined_and_reversed_transactions():
+    session = FakeSession()
+    session.transactions = [
+        {"PublisherId": 10, "TransactionDate": "2026-07-20 00:00:00", "Status": "declined"},
+        {"PublisherId": 10, "TransactionDate": "2026-07-22 00:00:00", "DeclineReason": "fraud"},
+        {"PublisherId": 10, "TransactionDate": "2026-07-25 00:00:00", "Status": "pending"},
+    ]
+    client = CreatorIQClient(_config(campaign_id="555"), session=session, first_post_observer=None)
+
+    records = client.fetch_activation(["10"])
+
+    assert len(records) == 1
+    assert records[0].first_sale_at.date() == date(2026, 7, 25)
+
+
+def test_fetch_activation_paginates_transactions():
+    session = FakeSession()
+    session.transactions = [
+        {"PublisherId": i, "TransactionDate": "2026-07-20 00:00:00", "Status": "pending"}
+        for i in range(250)
+    ]
+    client = CreatorIQClient(_config(campaign_id="555"), session=session, first_post_observer=None)
+
+    records = client.fetch_activation([str(i) for i in range(250)])
+
+    assert len(records) == 250
+    transaction_calls = [c for c in session.calls if c[0].endswith("/ecommerce/transactions")]
+    assert len(transaction_calls) == 3  # default page size 100 -> 3 pages for 250 rows
+
+
+def test_fetch_activity_returns_daily_sales_and_gmv_from_transactions():
+    session = FakeSession()
+    session.transactions = [
+        {
+            "PublisherId": 10,
+            "TransactionDate": "2026-07-20 10:00:00",
+            "Status": "pending",
+            "SaleAmount": 100.0,
+        },
+        {
+            "PublisherId": 10,
+            "TransactionDate": "2026-07-20 18:00:00",
+            "Status": "Approved",
+            "SaleAmount": 50.0,
+        },
+        {
+            "PublisherId": 10,
+            "TransactionDate": "2026-06-01 00:00:00",  # outside requested window
+            "Status": "pending",
+            "SaleAmount": 999.0,
+        },
+        {
+            "PublisherId": 99,  # not a requested creator
+            "TransactionDate": "2026-07-20 10:00:00",
+            "Status": "pending",
+            "SaleAmount": 10.0,
+        },
+        {
+            "PublisherId": 10,
+            "TransactionDate": "2026-07-21 00:00:00",
+            "Status": "declined",
+            "SaleAmount": 500.0,
+        },
+    ]
+    client = CreatorIQClient(_config(campaign_id="555"), session=session)
+
+    records = client.fetch_activity(["10"], date(2026, 7, 1), date(2026, 7, 31))
+
+    assert len(records) == 1
+    assert records[0].creator_id == "10"
+    assert records[0].activity_date == date(2026, 7, 20)
+    assert records[0].posts == 0
+    assert records[0].sales == 2
+    assert records[0].gmv_usd == 150.0
+
+
+def test_fetch_activity_returns_empty_without_campaign_id():
+    client = CreatorIQClient(_config(campaign_id=""), session=FakeSession())
 
     assert client.fetch_activity(["10"], date(2026, 7, 1), date(2026, 8, 1)) == []
 

@@ -132,16 +132,24 @@ account**, which surfaced a few things worth knowing:
   job* observed it, and returns that same stable date on every later
   call. How closely that approximates the true first-post date depends on
   how often the job runs (daily is tighter than weekly).
-- **First-sale / daily activity (GMV) is not wired up yet.** The CRM API's
-  `GET /crm/v1/api/campaign/{campaignId}/publisher/{publisherId}/conversionMetrics`
-  endpoint exists, but only exposes *current cumulative* values (e.g.
-  total orders, total GMV) with no per-conversion timestamp — so it can't
-  directly answer "when did this creator's first sale happen." Likely
-  options, not yet implemented: (a) extend the same locally-observed-proxy
-  approach used for first-post to GMV/order count, or (b) if your
-  program's sales are attributed via CreatorIQ's separate Link-Tracking
-  API (a different host/API from ExchangeIQ), use its per-click/conversion
-  event log instead, if it has dates.
+- **First-sale (and daily GMV) use a real per-transaction date, unlike
+  first-post.** `GET /crm/v1/api/ecommerce/transactions?CampaignId={id}`
+  (note: NOT the `conversionMetrics` endpoint, which only exposes current
+  *cumulative* values with no per-conversion timestamp) returns every
+  sale attributed to the campaign via CJ Affiliate (Commission Junction),
+  each with a real `TransactionDate`, `Status`, `SaleAmount`, and
+  `PublisherId`. This is paginated with `Page`/`PageSize` (default
+  `CREATORIQ_TRANSACTIONS_PAGE_SIZE=100`) and a `count` total to page
+  through. **`pending` transactions (not yet paid out by the affiliate
+  network) count as a qualifying "first sale"** for Fast Track, same as
+  `Approved`/`Confirmed` ones — confirmed by the program owner, since a
+  sale is a sale even before commission is finalized. Only actively
+  declined/reversed transactions (`DeclineReason` set, or a `Status` of
+  `declined`/`reversed`/`cancelled`) are excluded — see
+  `_is_qualifying_sale` in `src/fast_track/api/creatoriq.py`. The same
+  transactions feed daily GMV/sales-count for the retention dashboard via
+  `fetch_activity` (posts aren't included there, since there's still no
+  per-day post-count history — see the first-post point above).
 - **Field names** — `src/fast_track/api/field_mapper.py` lists the
   candidate field names tried for each normalized attribute (creator id,
   email, joined date, etc). If your account's payload uses a field name

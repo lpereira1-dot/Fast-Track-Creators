@@ -7,7 +7,9 @@ activity data. This module provides:
   `x-api-key` header. Fast Track creators and their "joined" date come from
   a specific Campaign's publisher roster (`GET /campaign/{id}/publishers`);
   first-post detection is a locally-tracked proxy (see `FirstPostObserver`
-  below) since CreatorIQ doesn't expose a true per-post timestamp.
+  below) since CreatorIQ doesn't expose a true per-post timestamp, while
+  first-sale detection uses a real per-transaction date from
+  `GET /ecommerce/transactions` (attributed via CJ Affiliate).
 - `FixtureCreatorIQClient`: reads local JSON fixtures with the same shape,
   used for local development, demos, and tests without live credentials.
 
@@ -20,7 +22,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -128,6 +130,18 @@ def _raw_to_activity(raw: dict) -> ActivityRecord | None:
 
 
 _NETWORK_ID_FROM_HREF = re.compile(r"/publisher/(\d+)/campaigns")
+
+# Fast Track counts a sale as soon as it's tracked, even if `pending` (not
+# yet paid out by the affiliate network) -- confirmed by the program owner.
+# Only transactions that were actively declined/reversed don't count.
+_NON_QUALIFYING_TRANSACTION_STATUSES = {"declined", "reversed", "cancelled", "canceled"}
+
+
+def _is_qualifying_sale(transaction: dict) -> bool:
+    if transaction.get("DeclineReason"):
+        return False
+    status = (transaction.get("Status") or "").strip().lower()
+    return status not in _NON_QUALIFYING_TRANSACTION_STATUSES
 
 
 class CreatorIQClient:
@@ -277,8 +291,60 @@ class CreatorIQClient:
             logger.warning("Failed to look up email for publisher %s: %s", creator_id, exc)
             return ""
 
+    def _fetch_campaign_transactions(self, campaign_id: str) -> list[dict]:
+        """All e-commerce transactions (sales) for a Campaign, across all publishers.
+
+        `GET /crm/v1/api/ecommerce/transactions` -- unlike `conversionMetrics`
+        (which only exposes current cumulative values), this gives a real
+        per-transaction `TransactionDate`, attributed via CJ Affiliate
+        (Commission Junction). Confirmed on real data to include `pending`
+        transactions (not yet paid out), which Fast Track counts as
+        qualifying sales -- see `_is_qualifying_sale`.
+        """
+
+        cfg = self._config
+        url = cfg.base_url.rstrip("/") + cfg.transactions_path
+        transactions: list[dict] = []
+        page = 1
+        while True:
+            response = self._session.get(
+                url,
+                headers=self._headers(),
+                params={
+                    "CampaignId": campaign_id,
+                    "Page": page,
+                    "PageSize": cfg.transactions_page_size,
+                },
+                timeout=cfg.timeout_seconds,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            rows = payload.get("data", [])
+            transactions.extend(rows)
+            total = payload.get("count", len(transactions))
+            if not rows or len(transactions) >= total:
+                break
+            page += 1
+        return transactions
+
+    def _first_sale_dates(self, campaign_id: str) -> dict[str, str]:
+        """Earliest qualifying-sale TransactionDate per creator_id, as raw strings."""
+
+        earliest: dict[str, str] = {}
+        for transaction in self._fetch_campaign_transactions(campaign_id):
+            if not _is_qualifying_sale(transaction):
+                continue
+            transaction_date = transaction.get("TransactionDate")
+            publisher_id = transaction.get("PublisherId")
+            if not transaction_date or publisher_id is None:
+                continue
+            key = str(publisher_id)
+            if key not in earliest or transaction_date < earliest[key]:
+                earliest[key] = transaction_date
+        return earliest
+
     def fetch_activation(self, creator_ids: list[str]) -> list[ActivationRecord]:
-        """First-post detection via a locally-observed proxy date.
+        """First-post (locally-observed proxy) and first-sale (real date) detection.
 
         CreatorIQ's campaign roster exposes each creator's *current*
         cumulative post count (`ActualPostsTotal`) but no per-post
@@ -290,9 +356,8 @@ class CreatorIQClient:
         on every later call. How closely that approximates the *true*
         first-post date depends on how often this job runs.
 
-        First-sale detection isn't wired up yet: the CRM API's
-        `conversionMetrics` endpoint only exposes current cumulative values
-        with no per-conversion timestamp either -- see README.
+        First-sale *does* have a real date, from `_fetch_campaign_transactions`
+        (see that method and `_is_qualifying_sale`).
         """
 
         if not creator_ids:
@@ -300,61 +365,115 @@ class CreatorIQClient:
         cfg = self._config
         if not cfg.campaign_id:
             logger.warning(
-                "CREATORIQ_CAMPAIGN_ID is not set, so first-post completion can't be "
+                "CREATORIQ_CAMPAIGN_ID is not set, so first-post/first-sale can't be "
                 "determined yet (see README 'Adapting to your CreatorIQ account'). "
                 "Returning no activation data."
             )
             return []
+
+        first_post_by_id: dict[str, date] = {}
         if self._first_post_observer is None:
             logger.warning(
                 "No first-post observer configured -- CreatorIQ doesn't expose a true "
                 "per-post timestamp, so first-post dates must be tracked locally as "
                 "they're observed (see fast_track.storage.state_store.StateStore). "
-                "Returning no activation data."
+                "Skipping first-post detection."
             )
-            return []
+        else:
+            try:
+                roster = self._fetch_campaign_roster(cfg.campaign_id)
+            except requests.RequestException as exc:
+                logger.warning("Failed to fetch campaign %s roster: %s", cfg.campaign_id, exc)
+                roster = {}
+            post_counts = {
+                str(creator_id): int((roster.get(str(creator_id)) or {}).get("ActualPostsTotal") or 0)
+                for creator_id in creator_ids
+            }
+            first_post_by_id = self._first_post_observer.resolve_first_post_dates(post_counts)
 
         try:
-            roster = self._fetch_campaign_roster(cfg.campaign_id)
+            first_sale_by_id = self._first_sale_dates(cfg.campaign_id)
         except requests.RequestException as exc:
-            logger.warning("Failed to fetch campaign %s roster: %s", cfg.campaign_id, exc)
-            return []
+            logger.warning("Failed to fetch campaign %s transactions: %s", cfg.campaign_id, exc)
+            first_sale_by_id = {}
 
-        post_counts = {
-            str(creator_id): int((roster.get(str(creator_id)) or {}).get("ActualPostsTotal") or 0)
-            for creator_id in creator_ids
-        }
-        observed = self._first_post_observer.resolve_first_post_dates(post_counts)
-        return [
-            ActivationRecord.from_api(
-                {
-                    "creator_id": creator_id,
-                    "first_post_at": observed[str(creator_id)].isoformat(),
-                    "first_sale_at": None,
-                }
+        records = []
+        for creator_id in creator_ids:
+            key = str(creator_id)
+            first_post_at = first_post_by_id.get(key)
+            first_sale_at = first_sale_by_id.get(key)
+            if first_post_at is None and first_sale_at is None:
+                continue
+            records.append(
+                ActivationRecord.from_api(
+                    {
+                        "creator_id": creator_id,
+                        "first_post_at": first_post_at.isoformat() if first_post_at else None,
+                        "first_sale_at": first_sale_at,
+                    }
+                )
             )
-            for creator_id in creator_ids
-            if str(creator_id) in observed
-        ]
+        return records
 
     def fetch_activity(
         self, creator_ids: list[str], start: date, end: date
     ) -> list[ActivityRecord]:
-        """Daily posts/sales/GMV history for the retention dashboard.
+        """Daily sales/GMV history for the retention dashboard.
 
-        Not wired up yet: CreatorIQ's CRM API doesn't expose a per-day
-        activity report, and per-conversion timestamps for GMV/sales aren't
-        available from the endpoints confirmed so far (see
-        `fetch_activation` docstring). See README for what's needed to
-        finish this.
+        Posts aren't included: CreatorIQ's CRM API doesn't expose a per-day
+        post-count history, and the locally-observed proxy used for
+        first-post *detection* (a single "first seen" date) isn't a good
+        fit for a full daily history -- see `fetch_activation`. Sales/GMV
+        *do* have real per-transaction dates via
+        `_fetch_campaign_transactions` (the same source used for
+        first-sale detection), so those are populated.
         """
 
-        if creator_ids:
+        if not creator_ids:
+            return []
+        cfg = self._config
+        if not cfg.campaign_id:
             logger.warning(
-                "Daily activity sync isn't wired up yet for this CreatorIQ account -- no "
-                "confirmed per-day posts/sales/GMV source. Returning no activity data."
+                "CREATORIQ_CAMPAIGN_ID is not set, so daily sales/GMV can't be pulled "
+                "(see README 'Adapting to your CreatorIQ account'). Returning no activity data."
             )
-        return []
+            return []
+        try:
+            transactions = self._fetch_campaign_transactions(cfg.campaign_id)
+        except requests.RequestException as exc:
+            logger.warning("Failed to fetch campaign %s transactions: %s", cfg.campaign_id, exc)
+            return []
+
+        wanted = {str(c) for c in creator_ids}
+        daily: dict[tuple[str, date], dict] = {}
+        for transaction in transactions:
+            if not _is_qualifying_sale(transaction):
+                continue
+            publisher_id = str(transaction.get("PublisherId"))
+            if publisher_id not in wanted:
+                continue
+            raw_date = transaction.get("TransactionDate")
+            if not raw_date:
+                continue
+            activity_date = datetime.fromisoformat(raw_date).date()
+            if not (start <= activity_date <= end):
+                continue
+            bucket = daily.setdefault((publisher_id, activity_date), {"sales": 0, "gmv_usd": 0.0})
+            bucket["sales"] += 1
+            bucket["gmv_usd"] += float(transaction.get("SaleAmount") or 0.0)
+
+        return [
+            ActivityRecord.from_api(
+                {
+                    "creator_id": creator_id,
+                    "date": activity_date.isoformat(),
+                    "posts": 0,
+                    "sales": bucket["sales"],
+                    "gmv_usd": bucket["gmv_usd"],
+                }
+            )
+            for (creator_id, activity_date), bucket in daily.items()
+        ]
 
 
 class FixtureCreatorIQClient:

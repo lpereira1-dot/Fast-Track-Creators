@@ -115,11 +115,27 @@ class CreatorIQConfig:
         default_factory=lambda: _env_int("CREATORIQ_CAMPAIGN_ROSTER_MAX_PAGES", 50)
     )
 
+    # E-commerce transactions endpoint -- the source of truth for "first
+    # sale", with a real per-transaction `TransactionDate` (unlike
+    # `conversionMetrics`, which only exposes current cumulative values).
+    # Transactions are attributed via CJ Affiliate (Commission Junction);
+    # `pending` (not yet paid out) transactions count as qualifying sales
+    # for Fast Track, same as `Approved`/`Confirmed` ones.
+    transactions_path: str = field(
+        default_factory=lambda: _env_str(
+            "CREATORIQ_TRANSACTIONS_PATH", "/crm/v1/api/ecommerce/transactions"
+        )
+    )
+    transactions_page_size: int = field(
+        default_factory=lambda: _env_int("CREATORIQ_TRANSACTIONS_PAGE_SIZE", 100)
+    )
+
     # The CreatorIQ CampaignId that Fast Track creators are added to --
-    # required both to pull "new" creators (via that campaign's roster,
-    # `DatePublisherAdded`) and to check first-post status
-    # (`ActualPostsTotal`, see `CreatorIQClient.fetch_activation`). Without
-    # this set, both are skipped with a warning rather than guessing at an
+    # required to pull "new" creators (via that campaign's roster,
+    # `DatePublisherAdded`), check first-post status (`ActualPostsTotal`),
+    # and scope the transactions lookup for first-sale detection (see
+    # `CreatorIQClient.fetch_activation`). Without this set, all of the
+    # above are skipped with a warning rather than guessing at an
     # unrelated campaign.
     campaign_id: str = field(default_factory=lambda: _env_str("CREATORIQ_CAMPAIGN_ID", ""))
 
