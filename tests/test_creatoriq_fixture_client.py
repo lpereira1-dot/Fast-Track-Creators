@@ -27,3 +27,13 @@ def test_fetch_activity_filters_by_creator_and_date():
     assert all(r.creator_id == "c-1001" for r in records)
     assert all(date(2026, 6, 1) <= r.activity_date <= date(2026, 6, 30) for r in records)
     assert len(records) > 0
+
+
+def test_fetch_creator_email_looks_up_from_fixture():
+    client = FixtureCreatorIQClient()
+    assert client.fetch_creator_email("c-1001") == "ava.thompson@example.com"
+
+
+def test_fetch_creator_email_returns_empty_for_unknown_creator():
+    client = FixtureCreatorIQClient()
+    assert client.fetch_creator_email("no-such-id") == ""

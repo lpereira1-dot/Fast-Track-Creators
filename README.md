@@ -2,9 +2,10 @@
 
 Automates the Fast Track creator gift-card activation program:
 
-1. **Weekly cohort pull** — pulls newly-joined creators from **CreatorIQ**
-   in weekly cohorts and evaluates gift-card eligibility ($25 for a first
-   post within 14 days of joining, +$25 for a first sale within 14 days).
+1. **Weekly cohort pull** — pulls creators recently added to the Fast
+   Track CreatorIQ campaign in weekly cohorts and evaluates gift-card
+   eligibility ($25 for a first post within 14 days of being added to the
+   campaign, +$25 for a first sale within 14 days).
 2. **Gift-card ordering sheet sync** — appends newly-qualified creators
    (name + email + milestone) to the existing Google Sheet your ordering
    team already uses, so gift cards get ordered without anyone manually
@@ -92,48 +93,58 @@ account**, which surfaced a few things worth knowing:
   from CreatorIQ's edge — which looks like a credentials/IP problem but
   usually just means the path is wrong. If you see this, double-check the
   path is under `/crm/v1/api/`.
-- **List endpoints are async "view" reports, not simple REST lists.**
-  Fetching new creators works like: `GET {CREATORIQ_VIEW_PATH}?view={CREATORIQ_PUBLISHERS_VIEW}&requestData[take]=...&requestData[skip]=...`
-  creates a task; the client polls until `TaskStatus` is `DONE`, then
-  fetches the actual rows from the signed URL in `Result.Headers.Location`.
-  See `CreatorIQClient._run_view_report` in `src/fast_track/api/creatoriq.py`.
-  The default view, `Reports/Publishers`, conveniently returns `PublisherId`,
-  `PublisherName`, `Email`, and a clean ISO `RecruitingStarted` join-date
-  directly — no secondary lookups needed for the new-creators pull.
-- **Pagination is `take`/`skip`, sorted descending.** New creators are
-  fetched newest-first (`CREATORIQ_PUBLISHERS_VIEW_SORT_FIELD`, default
-  `RecruitingStarted`) so the client can stop as soon as it pages past the
-  lookback window, rather than scanning the entire publisher list (large
-  accounts can have 900k+ publishers total).
-- **First-post completion comes from a campaign's publisher roster, not an
-  "activation report" endpoint.** `GET /crm/v1/api/campaign/{id}/publishers`
-  returns every publisher in that Campaign, and each entry's
-  `DateRequirementsCompleted` field is set once they've fulfilled the
-  campaign's post requirements. Set **`CREATORIQ_CAMPAIGN_ID`** to the
-  CampaignId your Fast Track creators are added to/required to post for —
-  without it, `fetch_activation` returns no data (with a warning) since a
-  creator may belong to many unrelated campaigns. The whole roster is
-  fetched once per run and looked up in-memory rather than calling
-  per-publisher, since with a few thousand new creators a week that both
-  hits CreatorIQ's rate limit (`429`) and is much slower — one roster call
-  covered a 283-creator campaign fully in testing. Note: this endpoint's
-  `page` param doesn't reliably paginate on the account this was tested
-  against (it just returns the same roster every time), so the client
-  walks pages defensively and stops once a page adds no new publisher ids.
+- **"Joined the Fast Track program" means added to a specific Campaign,
+  not the overall CreatorIQ network.** `GET /crm/v1/api/campaign/{id}/publishers`
+  returns every publisher in that Campaign, keyed by an internal
+  `PublisherId`, with `DatePublisherAdded` (when they joined *this*
+  campaign) and `ActualPostsTotal` (their current post count). Set
+  **`CREATORIQ_CAMPAIGN_ID`** to the CampaignId your Fast Track creators
+  are added to — without it, `fetch_new_creators`/`fetch_activation`
+  return no data (with a warning), since a creator may join the general
+  network long before (or after) being added to this specific campaign.
+  The whole roster is fetched once per run and looked up in-memory rather
+  than calling per-publisher, since with a few hundred creators added
+  recently that both hits CreatorIQ's rate limit (`429`) and is much
+  slower — one roster call covered a 283-creator campaign fully in
+  testing. Note: this endpoint's `page` param doesn't reliably paginate on
+  the account this was tested against (it just returns the same roster
+  every time), so the client walks pages defensively and stops once a
+  page adds no new publisher ids.
+- **Email isn't in the roster, and isn't fetched eagerly.** Getting a
+  creator's email requires a 3-hop chain — `GET /publisher/{internal_id}/campaigns`
+  (its response `href` happens to contain a *different* "network" id
+  scheme CreatorIQ uses for the base publisher resource) → `GET /publisher/{network_id}`
+  (gives an `Address.href`) → that href (gives `Email`). Since this is
+  expensive per creator, `fetch_new_creators` leaves email blank and
+  `CreatorIQClient.fetch_creator_email` is only called lazily, for the
+  handful of creators who actually qualify for a gift (see
+  `workflow/weekly_job.py`).
+- **"First post" has no true CreatorIQ timestamp, so it's tracked locally
+  as a proxy.** The roster's `ActualPostsTotal` is a live cumulative count
+  with no per-post date attached (and its sibling field,
+  `DateRequirementsCompleted`, means "completed posting on *all* required
+  platforms" — confirmed on real data to be a much rarer, stricter
+  condition than "posted once," so it's not used). Instead,
+  `CreatorIQClient.fetch_activation` looks up each creator's current post
+  count and hands it to a `FirstPostObserver` (see
+  `StateStore.resolve_first_post_dates`), which persists — once, the
+  first time a creator's count is seen above zero — the date *our own
+  job* observed it, and returns that same stable date on every later
+  call. How closely that approximates the true first-post date depends on
+  how often the job runs (daily is tighter than weekly).
 - **First-sale / daily activity (GMV) is not wired up yet.** The CRM API's
   `GET /crm/v1/api/campaign/{campaignId}/publisher/{publisherId}/conversionMetrics`
   endpoint exists, but only exposes *current cumulative* values (e.g.
   total orders, total GMV) with no per-conversion timestamp — so it can't
   directly answer "when did this creator's first sale happen." Likely
-  options, not yet implemented: (a) poll this endpoint daily and treat the
-  date a metric is first observed going from zero to non-zero as the
-  "first sale" date (requires local state to track previous values), or
-  (b) if your program's sales are attributed via CreatorIQ's separate
-  Link-Tracking API (a different host/API from ExchangeIQ), use its
-  per-click/conversion event log instead, if it has dates.
+  options, not yet implemented: (a) extend the same locally-observed-proxy
+  approach used for first-post to GMV/order count, or (b) if your
+  program's sales are attributed via CreatorIQ's separate Link-Tracking
+  API (a different host/API from ExchangeIQ), use its per-click/conversion
+  event log instead, if it has dates.
 - **Field names** — `src/fast_track/api/field_mapper.py` lists the
   candidate field names tried for each normalized attribute (creator id,
-  email, first post date, etc). If your account's payload uses a field name
+  email, joined date, etc). If your account's payload uses a field name
   not already in that list, add it there — no other code needs to change.
 
 Once you have a real API response in hand, the fastest way to verify the
@@ -163,7 +174,7 @@ where the manual process left off and keeps the sheet in sync automatically.
 
 | Rule | Env var | Default |
 |---|---|---|
-| Days to complete a milestone after joining | `ACTIVATION_WINDOW_DAYS` | 14 |
+| Days to complete a milestone after being added to the Fast Track campaign | `ACTIVATION_WINDOW_DAYS` | 14 |
 | First-post gift amount | `FIRST_POST_GIFT_USD` | $25 |
 | First-sale gift amount | `FIRST_SALE_GIFT_USD` | $25 |
 | Retention dashboard pre/post window | `RETENTION_WINDOW_DAYS` | 30 days |

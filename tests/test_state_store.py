@@ -60,6 +60,27 @@ def test_activity_upsert_overwrites_same_day(tmp_path):
         assert activity[0].posts == 5
 
 
+def test_resolve_first_post_dates_records_date_on_first_observation(tmp_path):
+    with StateStore(tmp_path / "state.db") as store:
+        observed = store.resolve_first_post_dates({"c-1": 3, "c-2": 0}, today=date(2026, 7, 1))
+        assert observed == {"c-1": date(2026, 7, 1)}
+
+
+def test_resolve_first_post_dates_is_stable_across_calls(tmp_path):
+    with StateStore(tmp_path / "state.db") as store:
+        store.resolve_first_post_dates({"c-1": 1}, today=date(2026, 7, 1))
+        # Even though the post count grew and "today" advanced, the
+        # originally-observed date should stick.
+        later = store.resolve_first_post_dates({"c-1": 5}, today=date(2026, 7, 10))
+        assert later == {"c-1": date(2026, 7, 1)}
+
+
+def test_resolve_first_post_dates_omits_creators_with_zero_count(tmp_path):
+    with StateStore(tmp_path / "state.db") as store:
+        observed = store.resolve_first_post_dates({"c-1": 0})
+        assert observed == {}
+
+
 def test_get_activity_filters_by_date_range(tmp_path):
     with StateStore(tmp_path / "state.db") as store:
         store.upsert_activity(

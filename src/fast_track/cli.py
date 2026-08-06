@@ -34,10 +34,13 @@ def _build_sheet_client(settings) -> GiftOrderSheetClient | None:
 
 def cmd_run_weekly_job(args: argparse.Namespace) -> int:
     settings = get_settings()
-    reports_client = build_reports_client(settings.creatoriq)
     sheet_client = None if args.dry_run else _build_sheet_client(settings)
 
     with StateStore(settings.storage.db_path) as store:
+        # `store` doubles as the "first post" observer -- CreatorIQ doesn't
+        # expose a true per-post timestamp, so it's tracked locally (see
+        # StateStore.resolve_first_post_dates).
+        reports_client = build_reports_client(settings.creatoriq, first_post_observer=store)
         result = run_weekly_cohort_job(
             reports_client=reports_client,
             store=store,
@@ -51,10 +54,10 @@ def cmd_run_weekly_job(args: argparse.Namespace) -> int:
 
 def cmd_backfill(args: argparse.Namespace) -> int:
     settings = get_settings()
-    reports_client = build_reports_client(settings.creatoriq)
     since = date.fromisoformat(args.since)
     until = date.fromisoformat(args.until) if args.until else date.today()
     with StateStore(settings.storage.db_path) as store:
+        reports_client = build_reports_client(settings.creatoriq, first_post_observer=store)
         result = run_backfill_job(reports_client, store, settings, since=since, until=until)
     print(result.summary())
     return 0

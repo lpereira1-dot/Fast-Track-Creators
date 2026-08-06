@@ -78,12 +78,11 @@ class CreatorIQConfig:
     header (request one from your CreatorIQ account rep / support@creatoriq.com).
 
     Confirmed against a live account: CreatorIQ's real API is namespaced
-    under `/crm/v1/api/...` (NOT a generic `/v1/...` REST tree), and its
-    "list" endpoints are asynchronous report "views" -- you submit a
-    `GET /crm/v1/api/view?view=<ViewName>&requestData[...]=...` request,
-    poll the returned `TaskId` until `TaskStatus` is `DONE`, then fetch the
-    actual rows from the signed S3 URL in `Result.Headers.Location`. See
-    README.md "Adapting to your CreatorIQ account" for how to tune this.
+    under `/crm/v1/api/...` (NOT a generic `/v1/...` REST tree). Fast Track
+    creators and their "joined" date come from a specific Campaign's
+    publisher roster (`GET /crm/v1/api/campaign/{id}/publishers`) rather
+    than a generic "new creators" endpoint -- see README.md "Adapting to
+    your CreatorIQ account" for the full picture.
     """
 
     base_url: str = field(
@@ -94,30 +93,12 @@ class CreatorIQConfig:
         default_factory=lambda: _env_str("CREATORIQ_API_KEY_HEADER", "x-api-key")
     )
 
-    # Async "view" report endpoint used for the new-creators pull, e.g.
-    # GET {base_url}{view_path}?view={publishers_view}&requestData[take]=...
-    view_path: str = field(default_factory=lambda: _env_str("CREATORIQ_VIEW_PATH", "/crm/v1/api/view"))
-    publishers_view: str = field(
-        default_factory=lambda: _env_str("CREATORIQ_PUBLISHERS_VIEW", "Reports/Publishers")
-    )
-    # Field the publishers view is sorted by (descending) so we can walk
-    # newest-first and stop as soon as we cross the lookback window --
-    # pulling all publishers unsorted isn't practical on large accounts.
-    publishers_view_sort_field: str = field(
-        default_factory=lambda: _env_str("CREATORIQ_PUBLISHERS_VIEW_SORT_FIELD", "RecruitingStarted")
-    )
-    view_page_size: int = field(default_factory=lambda: _env_int("CREATORIQ_VIEW_PAGE_SIZE", 200))
-    view_poll_interval_seconds: float = field(
-        default_factory=lambda: _env_float("CREATORIQ_VIEW_POLL_INTERVAL_SECONDS", 2.0)
-    )
-    view_poll_timeout_seconds: float = field(
-        default_factory=lambda: _env_float("CREATORIQ_VIEW_POLL_TIMEOUT_SECONDS", 60.0)
-    )
-
-    # Path (relative to base_url) for a Campaign's full publisher roster,
-    # used to derive "first post" completion from each membership's
-    # `DateRequirementsCompleted` field. `{campaign_id}` is substituted in.
-    # Confirmed to return the *entire* roster in one call for a
+    # Path (relative to base_url) for a Campaign's full publisher roster --
+    # the source of truth for who's in the Fast Track program, when they
+    # joined (`DatePublisherAdded`), and their current post count
+    # (`ActualPostsTotal`, used as a first-post proxy -- see
+    # `CreatorIQClient.fetch_activation`). `{campaign_id}` is substituted
+    # in. Confirmed to return the *entire* roster in one call for a
     # program-sized campaign (its `page` param doesn't reliably paginate),
     # so this is fetched once per run and looked up in-memory rather than
     # calling per-publisher (which is both slow and easy to rate-limit at
@@ -134,16 +115,13 @@ class CreatorIQConfig:
         default_factory=lambda: _env_int("CREATORIQ_CAMPAIGN_ROSTER_MAX_PAGES", 50)
     )
 
-    # The CreatorIQ CampaignId that Fast Track creators are added to and
-    # must complete post requirements for -- required to know which
-    # campaign membership's `DateRequirementsCompleted` represents the
-    # Fast Track "first post" milestone (a creator may belong to many
-    # unrelated campaigns). Leave blank until confirmed; first-post
-    # detection is skipped (with a warning) while unset.
+    # The CreatorIQ CampaignId that Fast Track creators are added to --
+    # required both to pull "new" creators (via that campaign's roster,
+    # `DatePublisherAdded`) and to check first-post status
+    # (`ActualPostsTotal`, see `CreatorIQClient.fetch_activation`). Without
+    # this set, both are skipped with a warning rather than guessing at an
+    # unrelated campaign.
     campaign_id: str = field(default_factory=lambda: _env_str("CREATORIQ_CAMPAIGN_ID", ""))
-    publisher_list_id: str = field(
-        default_factory=lambda: _env_str("CREATORIQ_PUBLISHER_LIST_ID", "")
-    )
 
     timeout_seconds: int = field(
         default_factory=lambda: _env_int("CREATORIQ_TIMEOUT_SECONDS", 30)

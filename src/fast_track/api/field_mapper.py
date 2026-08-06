@@ -63,8 +63,12 @@ PUBLISHER_ID_FIELDS = ["PublisherId", "publisher_id", "Id", "id", "PublicId"]
 PUBLISHER_NAME_FIELDS = ["PublisherName", "Name", "name", "FullName", "DisplayName", "UserName"]
 PUBLISHER_EMAIL_FIELDS = ["Email", "EmailAddress", "email", "PrimaryEmail"]
 PUBLISHER_JOINED_FIELDS = [
-    # "RecruitingStarted" (from the `Reports/Publishers` view) is the
-    # confirmed field on live CreatorIQ/Wayfair data -- a clean ISO date.
+    # "DatePublisherAdded" (from a Campaign's publisher roster, see
+    # `CreatorIQClient._fetch_campaign_roster`) is the confirmed field for
+    # "when this creator joined the Fast Track program" -- i.e. when they
+    # were added to the tracked Campaign, not when they joined the overall
+    # CreatorIQ network (those can differ by weeks or months).
+    "DatePublisherAdded",
     "RecruitingStarted",
     "DateJoinedNetwork",
     "DateAdded",

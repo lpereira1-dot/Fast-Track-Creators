@@ -13,7 +13,7 @@ the local state store + a defense-in-depth check against the sheet itself.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, timedelta
 
 from fast_track.api.creatoriq import ReportsClient
@@ -71,6 +71,23 @@ def lookback_days(settings: Settings) -> int:
     return settings.program.activation_window_days + 7
 
 
+def _resolve_award_email(award: GiftAward, reports_client: ReportsClient) -> GiftAward:
+    """Fill in a creator's email lazily, only for awards about to be sheeted.
+
+    `fetch_new_creators` intentionally leaves email blank for every pulled
+    creator (resolving it costs a few extra CreatorIQ API calls each), so
+    it's only looked up here for the handful who actually qualify for a
+    gift and need an email on their sheet row.
+    """
+
+    if award.creator.email:
+        return award
+    email = reports_client.fetch_creator_email(award.creator.creator_id)
+    if not email:
+        return award
+    return replace(award, creator=replace(award.creator, email=email))
+
+
 def run_weekly_cohort_job(
     reports_client: ReportsClient,
     store: StateStore,
@@ -90,6 +107,9 @@ def run_weekly_cohort_job(
 
     awards = evaluate_all_awards(creators, activations_by_id, settings.program)
     new_awards = store.filter_unrecorded(awards)
+    new_awards = [_resolve_award_email(a, reports_client) for a in new_awards]
+    if new_awards:
+        store.upsert_creators([a.creator for a in new_awards])
 
     if dry_run or sheet_client is None:
         newly_added = new_awards

@@ -49,6 +49,16 @@ CREATE TABLE IF NOT EXISTS activity (
     gmv_usd REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (creator_id, activity_date)
 );
+
+-- CreatorIQ doesn't expose a true per-post timestamp for this account (see
+-- README "Adapting to your CreatorIQ account"), so "first post" is tracked
+-- as a locally-observed proxy: the first date our own job sees a creator's
+-- post count go above zero. Recorded once per creator so re-running (even
+-- daily) never drifts the date forward.
+CREATE TABLE IF NOT EXISTS first_post_observations (
+    creator_id TEXT PRIMARY KEY,
+    observed_at TEXT NOT NULL
+);
 """
 
 
@@ -171,6 +181,41 @@ class StateStore:
                 )
             )
         return awards
+
+    # -- first-post observation (proxy for a missing CreatorIQ timestamp) --
+
+    def resolve_first_post_dates(
+        self, post_counts: dict[str, int], today: date | None = None
+    ) -> dict[str, date]:
+        """Return each creator's "first post" date, persisting it the first time seen.
+
+        `post_counts` is each creator's *current* cumulative post count (no
+        date attached, straight from CreatorIQ). For any creator with a
+        count > 0, this records today's date the first time it's seen and
+        returns that same stored date on every later call -- so the
+        "first post" date stays stable no matter how often this runs.
+        Creators with a zero count are omitted from the result entirely.
+        """
+
+        today = today or date.today()
+        result: dict[str, date] = {}
+        for creator_id, count in post_counts.items():
+            if count <= 0:
+                continue
+            row = self._conn.execute(
+                "SELECT observed_at FROM first_post_observations WHERE creator_id = ?",
+                (creator_id,),
+            ).fetchone()
+            if row is None:
+                self._conn.execute(
+                    "INSERT INTO first_post_observations (creator_id, observed_at) VALUES (?, ?)",
+                    (creator_id, today.isoformat()),
+                )
+                result[creator_id] = today
+            else:
+                result[creator_id] = date.fromisoformat(row["observed_at"])
+        self._conn.commit()
+        return result
 
     # -- activity (dashboard feed) ----------------------------------------
 
