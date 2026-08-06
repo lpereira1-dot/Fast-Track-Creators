@@ -1,3 +1,4 @@
+import json
 from datetime import date, datetime
 
 import gspread
@@ -5,7 +6,7 @@ import pytest
 
 from fast_track.config import GoogleSheetsConfig
 from fast_track.models import Creator, GiftAward, Milestone
-from fast_track.sheets.gift_order_sheet import GiftOrderSheetClient
+from fast_track.sheets.gift_order_sheet import GiftOrderSheetClient, _build_gspread_client
 
 
 class FakeWorksheet:
@@ -142,3 +143,32 @@ def test_append_awards_allows_second_milestone_for_same_creator(tmp_path):
 def test_missing_credentials_raises():
     with pytest.raises(ValueError):
         GiftOrderSheetClient(GoogleSheetsConfig(spreadsheet_id="", service_account_json_path=""))
+
+
+def test_build_gspread_client_uses_file_path_when_not_json(monkeypatch, tmp_path):
+    service_account_path = tmp_path / "sa.json"
+    service_account_path.write_text("{}")
+    config = GoogleSheetsConfig(
+        spreadsheet_id="sheet-123", service_account_json_path=str(service_account_path)
+    )
+
+    captured = {}
+    monkeypatch.setattr(
+        gspread, "service_account", lambda filename: captured.setdefault("filename", filename)
+    )
+    _build_gspread_client(config)
+    assert captured["filename"] == str(service_account_path)
+
+
+def test_build_gspread_client_accepts_raw_json_contents(monkeypatch):
+    key_info = {"type": "service_account", "client_email": "bot@example.com"}
+    config = GoogleSheetsConfig(
+        spreadsheet_id="sheet-123", service_account_json_path=json.dumps(key_info)
+    )
+
+    captured = {}
+    monkeypatch.setattr(
+        gspread, "service_account_from_dict", lambda info: captured.setdefault("info", info)
+    )
+    _build_gspread_client(config)
+    assert captured["info"] == key_info

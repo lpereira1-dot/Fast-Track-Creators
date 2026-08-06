@@ -66,11 +66,13 @@ fast-track dashboard
      auth via a static `x-api-key` header).
    - `GIFT_ORDER_SHEET_ID` — the spreadsheet ID (from its URL) of the
      ordering team's existing Google Sheet.
-   - `GOOGLE_SERVICE_ACCOUNT_JSON` — path to a
+   - `GOOGLE_SERVICE_ACCOUNT_JSON` — a
      [Google service account](https://cloud.google.com/iam/docs/service-account-overview)
-     JSON key with the Sheets API enabled. **Share the target spreadsheet
-     with the service account's `client_email`** (Editor access) so it can
-     append rows.
+     JSON key with the Sheets API enabled, given either as a file path or as
+     the raw JSON key contents directly (useful when this is set via a
+     secrets manager / CI / Cursor Cloud secret rather than a local file).
+     **Share the target spreadsheet with the service account's
+     `client_email`** (Editor access) so it can append rows.
 2. Run `fast-track run-weekly-job --dry-run` first to sanity-check what it
    would add, then drop `--dry-run` to actually sync.
 3. Schedule it — see [Scheduling](#scheduling) below.

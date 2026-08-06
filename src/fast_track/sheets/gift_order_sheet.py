@@ -9,12 +9,28 @@ already in the sheet, so re-running the job is always safe.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 
 import gspread
 
 from fast_track.config import GoogleSheetsConfig
 from fast_track.models import GiftAward
+
+
+def _build_gspread_client(config: GoogleSheetsConfig) -> gspread.Client:
+    """Authenticate with either a service-account file path OR raw JSON key contents.
+
+    `GOOGLE_SERVICE_ACCOUNT_JSON` can be set to a path on disk (typical for
+    local development) or, since secrets injected by CI/Cursor Cloud are
+    always environment variables rather than files, to the full contents of
+    the service-account JSON key pasted directly as the secret's value.
+    """
+
+    value = config.service_account_json_path.strip()
+    if value.startswith("{"):
+        return gspread.service_account_from_dict(json.loads(value))
+    return gspread.service_account(filename=value)
 
 
 class GiftOrderSheetClient:
@@ -25,9 +41,7 @@ class GiftOrderSheetClient:
                 "GOOGLE_SERVICE_ACCOUNT_JSON."
             )
         self._config = config
-        self._client = gspread_client or gspread.service_account(
-            filename=config.service_account_json_path
-        )
+        self._client = gspread_client or _build_gspread_client(config)
         self._worksheet = self._open_worksheet()
 
     def _open_worksheet(self) -> gspread.Worksheet:
