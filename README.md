@@ -79,30 +79,62 @@ fast-track dashboard
 
 ### Adapting to your CreatorIQ account
 
-CreatorIQ's exact endpoint paths and JSON field names can vary by account
+CreatorIQ's exact endpoint shapes and JSON field names can vary by account
 and API version (the full reference lives behind a login at
 [apidocs.creatoriq.com](https://apidocs.creatoriq.com)). Rather than
-hard-code one schema, this integration is deliberately configurable:
+hard-code one schema, this integration is deliberately configurable — and
+the defaults below have been **confirmed against a real CreatorIQ (Wayfair)
+account**, which surfaced a few things worth knowing:
 
-- **Endpoint paths** — override `CREATORIQ_PUBLISHERS_PATH`,
-  `CREATORIQ_ACTIVATION_REPORT_PATH`, `CREATORIQ_ACTIVITY_REPORT_PATH` in
-  `.env` if your account uses different paths (see `src/fast_track/config.py`).
-- **Response envelope** — `CREATORIQ_RESPONSE_ROOT` (default `"data"`) is
-  the JSON key holding the list of records; the client also automatically
-  tries `data`/`items`/`results`/`publishers` as fallbacks.
+- **The real API is namespaced under `/crm/v1/api/...`**, not a generic
+  `/v1/...` REST tree. Any request outside that prefix (wrong path, wrong
+  auth, doesn't matter) gets an identical generic `403 {"message":"Forbidden"}`
+  from CreatorIQ's edge — which looks like a credentials/IP problem but
+  usually just means the path is wrong. If you see this, double-check the
+  path is under `/crm/v1/api/`.
+- **List endpoints are async "view" reports, not simple REST lists.**
+  Fetching new creators works like: `GET {CREATORIQ_VIEW_PATH}?view={CREATORIQ_PUBLISHERS_VIEW}&requestData[take]=...&requestData[skip]=...`
+  creates a task; the client polls until `TaskStatus` is `DONE`, then
+  fetches the actual rows from the signed URL in `Result.Headers.Location`.
+  See `CreatorIQClient._run_view_report` in `src/fast_track/api/creatoriq.py`.
+  The default view, `Reports/Publishers`, conveniently returns `PublisherId`,
+  `PublisherName`, `Email`, and a clean ISO `RecruitingStarted` join-date
+  directly — no secondary lookups needed for the new-creators pull.
+- **Pagination is `take`/`skip`, sorted descending.** New creators are
+  fetched newest-first (`CREATORIQ_PUBLISHERS_VIEW_SORT_FIELD`, default
+  `RecruitingStarted`) so the client can stop as soon as it pages past the
+  lookback window, rather than scanning the entire publisher list (large
+  accounts can have 900k+ publishers total).
+- **First-post completion comes from campaign membership, not an
+  "activation report" endpoint.** `GET /crm/v1/api/publisher/{id}/campaigns`
+  returns each campaign a publisher belongs to, and a membership's
+  `DateRequirementsCompleted` field is set once they've fulfilled that
+  campaign's post requirements. Set **`CREATORIQ_CAMPAIGN_ID`** to the
+  CampaignId your Fast Track creators are added to/required to post
+  for — without it, `fetch_activation` returns no data (with a warning) since
+  a creator may belong to many unrelated campaigns and there's no way to
+  know which membership matters.
+- **First-sale / daily activity (GMV) is not wired up yet.** The CRM API's
+  `GET /crm/v1/api/campaign/{campaignId}/publisher/{publisherId}/conversionMetrics`
+  endpoint exists, but only exposes *current cumulative* values (e.g.
+  total orders, total GMV) with no per-conversion timestamp — so it can't
+  directly answer "when did this creator's first sale happen." Likely
+  options, not yet implemented: (a) poll this endpoint daily and treat the
+  date a metric is first observed going from zero to non-zero as the
+  "first sale" date (requires local state to track previous values), or
+  (b) if your program's sales are attributed via CreatorIQ's separate
+  Link-Tracking API (a different host/API from ExchangeIQ), use its
+  per-click/conversion event log instead, if it has dates.
 - **Field names** — `src/fast_track/api/field_mapper.py` lists the
   candidate field names tried for each normalized attribute (creator id,
   email, first post date, etc). If your account's payload uses a field name
   not already in that list, add it there — no other code needs to change.
-- **Scoping to the Fast Track program** — if your Fast Track creators live
-  under a specific CreatorIQ Campaign or Publisher List, set
-  `CREATORIQ_CAMPAIGN_ID` or `CREATORIQ_PUBLISHER_LIST_ID` so the weekly
-  pull doesn't pick up unrelated creators.
 
 Once you have a real API response in hand, the fastest way to verify the
 mapping is correct is to drop a sample payload into `fixtures/creatoriq/`
 (matching the shape of `publishers.json` / `activation.json` /
-`activity.json`) and run `CREATORIQ_USE_FIXTURES=true fast-track run-weekly-job --dry-run`.
+`activity.json`) and run `CREATORIQ_USE_FIXTURES=true fast-track run-weekly-job --dry-run`
+(or, against live credentials, just `fast-track run-weekly-job --dry-run`).
 
 ### Backfilling history from the manual test period
 

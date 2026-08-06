@@ -60,9 +60,13 @@ def extract_records(payload: dict, response_root_candidates: Iterable[str]) -> l
 # account's payload uses different names -- most CreatorIQ deployments use
 # some subset of these PascalCase / snake_case / camelCase variants.
 PUBLISHER_ID_FIELDS = ["PublisherId", "publisher_id", "Id", "id", "PublicId"]
-PUBLISHER_NAME_FIELDS = ["Name", "name", "FullName", "DisplayName", "UserName"]
-PUBLISHER_EMAIL_FIELDS = ["EmailAddress", "email", "Email", "PrimaryEmail"]
+PUBLISHER_NAME_FIELDS = ["PublisherName", "Name", "name", "FullName", "DisplayName", "UserName"]
+PUBLISHER_EMAIL_FIELDS = ["Email", "EmailAddress", "email", "PrimaryEmail"]
 PUBLISHER_JOINED_FIELDS = [
+    # "RecruitingStarted" (from the `Reports/Publishers` view) is the
+    # confirmed field on live CreatorIQ/Wayfair data -- a clean ISO date.
+    "RecruitingStarted",
+    "DateJoinedNetwork",
     "DateAdded",
     "date_added",
     "CreatedDate",
