@@ -203,7 +203,7 @@ def main() -> None:
                 y=curve["pct_active"],
                 mode="lines+markers",
                 name="% active",
-                line=dict(color="#2563eb"),
+                line=dict(color="#7F187F"),  # Wayfair brand purple
             )
         )
         fig.add_vline(x=0, line_dash="dash", line_color="gray", annotation_text="Gift received")
