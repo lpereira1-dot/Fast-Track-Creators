@@ -1,0 +1,64 @@
+{
+  "data": [
+    {
+      "PublisherId": "c-1001",
+      "FirstPostDate": "2026-06-03",
+      "FirstSaleDate": "2026-06-10"
+    },
+    {
+      "PublisherId": "c-1002",
+      "FirstPostDate": "2026-06-20",
+      "FirstSaleDate": null
+    },
+    {
+      "PublisherId": "c-1003",
+      "FirstPostDate": "2026-06-09",
+      "FirstSaleDate": null
+    },
+    {
+      "PublisherId": "c-1004",
+      "FirstPostDate": null,
+      "FirstSaleDate": null
+    },
+    {
+      "PublisherId": "c-1005",
+      "FirstPostDate": "2026-06-18",
+      "FirstSaleDate": "2026-06-27"
+    },
+    {
+      "PublisherId": "c-1006",
+      "FirstPostDate": "2026-06-20",
+      "FirstSaleDate": null
+    },
+    {
+      "PublisherId": "c-1007",
+      "FirstPostDate": "2026-06-24",
+      "FirstSaleDate": "2026-06-28"
+    },
+    {
+      "PublisherId": "c-1008",
+      "FirstPostDate": null,
+      "FirstSaleDate": null
+    },
+    {
+      "PublisherId": "c-1009",
+      "FirstPostDate": "2026-07-30",
+      "FirstSaleDate": null
+    },
+    {
+      "PublisherId": "c-1010",
+      "FirstPostDate": null,
+      "FirstSaleDate": null
+    },
+    {
+      "PublisherId": "c-1011",
+      "FirstPostDate": null,
+      "FirstSaleDate": null
+    },
+    {
+      "PublisherId": "c-1012",
+      "FirstPostDate": "2026-08-04",
+      "FirstSaleDate": null
+    }
+  ]
+}

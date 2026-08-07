@@ -1,0 +1,88 @@
+{
+  "data": [
+    {
+      "PublisherId": "c-1001",
+      "Name": "Ava Thompson",
+      "EmailAddress": "ava.thompson@example.com",
+      "DateAdded": "2026-06-01",
+      "Status": "Active"
+    },
+    {
+      "PublisherId": "c-1002",
+      "Name": "Liam Chen",
+      "EmailAddress": "liam.chen@example.com",
+      "DateAdded": "2026-06-01",
+      "Status": "Active"
+    },
+    {
+      "PublisherId": "c-1003",
+      "Name": "Maya Patel",
+      "EmailAddress": "maya.patel@example.com",
+      "DateAdded": "2026-06-08",
+      "Status": "Active"
+    },
+    {
+      "PublisherId": "c-1004",
+      "Name": "Noah Garcia",
+      "EmailAddress": "noah.garcia@example.com",
+      "DateAdded": "2026-06-08",
+      "Status": "Active"
+    },
+    {
+      "PublisherId": "c-1005",
+      "Name": "Sophia Kim",
+      "EmailAddress": "sophia.kim@example.com",
+      "DateAdded": "2026-06-15",
+      "Status": "Active"
+    },
+    {
+      "PublisherId": "c-1006",
+      "Name": "Ethan Rodriguez",
+      "EmailAddress": "ethan.rodriguez@example.com",
+      "DateAdded": "2026-06-15",
+      "Status": "Active"
+    },
+    {
+      "PublisherId": "c-1007",
+      "Name": "Isabella Nguyen",
+      "EmailAddress": "isabella.nguyen@example.com",
+      "DateAdded": "2026-06-22",
+      "Status": "Active"
+    },
+    {
+      "PublisherId": "c-1008",
+      "Name": "Mason Lee",
+      "EmailAddress": "mason.lee@example.com",
+      "DateAdded": "2026-06-22",
+      "Status": "Active"
+    },
+    {
+      "PublisherId": "c-1009",
+      "Name": "Olivia Martinez",
+      "EmailAddress": "olivia.martinez@example.com",
+      "DateAdded": "2026-07-27",
+      "Status": "Active"
+    },
+    {
+      "PublisherId": "c-1010",
+      "Name": "Lucas Davis",
+      "EmailAddress": "lucas.davis@example.com",
+      "DateAdded": "2026-07-27",
+      "Status": "Active"
+    },
+    {
+      "PublisherId": "c-1011",
+      "Name": "Mia Wilson",
+      "EmailAddress": "mia.wilson@example.com",
+      "DateAdded": "2026-08-03",
+      "Status": "Active"
+    },
+    {
+      "PublisherId": "c-1012",
+      "Name": "James Brown",
+      "EmailAddress": "james.brown@example.com",
+      "DateAdded": "2026-08-03",
+      "Status": "Active"
+    }
+  ]
+}

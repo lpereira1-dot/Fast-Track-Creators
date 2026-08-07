@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local state (SQLite DB, service account keys, env vars) -- never commit secrets or local data.
+data/
+*.db
+.env
+service_account.json
+*service-account*.json
+.streamlit/secrets.toml
+
+.DS_Store
