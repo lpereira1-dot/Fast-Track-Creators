@@ -107,6 +107,32 @@ def test_email_tracking_is_independent_per_email_type(tmp_path):
         assert store.last_email_sent_at("c-1", "welcome") == date(2026, 7, 1)
 
 
+def test_all_creator_emails_returns_empty_when_none_sent(tmp_path):
+    with StateStore(tmp_path / "state.db") as store:
+        assert store.all_creator_emails() == []
+
+
+def test_all_creator_emails_joins_creator_info_and_sorts_by_recency(tmp_path):
+    with StateStore(tmp_path / "state.db") as store:
+        store.upsert_creators([creator("c-1"), creator("c-2")])
+        store.record_email_sent("c-1", "welcome", sent_at=date(2026, 7, 1))
+        store.record_email_sent("c-1", "post_reminder", sent_at=date(2026, 7, 8))
+        store.record_email_sent("c-1", "post_reminder", sent_at=date(2026, 7, 10))
+        store.record_email_sent("c-2", "welcome", sent_at=date(2026, 7, 5))
+
+        log = store.all_creator_emails()
+
+        assert [e.last_sent_at for e in log] == sorted(
+            (e.last_sent_at for e in log), reverse=True
+        )
+        by_key = {(e.creator_id, e.email_type): e for e in log}
+        assert by_key[("c-1", "welcome")].creator_name == "c-1"
+        assert by_key[("c-1", "welcome")].creator_email == "c-1@example.com"
+        assert by_key[("c-1", "post_reminder")].last_sent_at == date(2026, 7, 10)
+        assert by_key[("c-1", "post_reminder")].send_count == 2
+        assert by_key[("c-2", "welcome")].send_count == 1
+
+
 def test_get_activity_filters_by_date_range(tmp_path):
     with StateStore(tmp_path / "state.db") as store:
         store.upsert_activity(

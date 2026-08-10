@@ -26,7 +26,7 @@ import sqlite3
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from fast_track.models import ActivityRecord, Creator, GiftAward, Milestone
+from fast_track.models import ActivityRecord, Creator, CreatorEmailLog, GiftAward, Milestone
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS creators (
@@ -256,6 +256,31 @@ class StateStore:
             (creator_id, email_type, sent_at.isoformat()),
         )
         self._conn.commit()
+
+    def all_creator_emails(self) -> list[CreatorEmailLog]:
+        """Every (creator, email_type) send record -- for the dashboard's
+
+        "Creator email status" table. Send status only (who got what,
+        when, how many times) -- no open/click tracking, since CreatorIQ's
+        bulk-email endpoint doesn't expose that.
+        """
+
+        rows = self._conn.execute(
+            "SELECT ce.*, c.name, c.email FROM creator_emails ce "
+            "JOIN creators c ON c.creator_id = ce.creator_id "
+            "ORDER BY ce.last_sent_at DESC"
+        ).fetchall()
+        return [
+            CreatorEmailLog(
+                creator_id=r["creator_id"],
+                creator_name=r["name"],
+                creator_email=r["email"],
+                email_type=r["email_type"],
+                last_sent_at=date.fromisoformat(r["last_sent_at"]),
+                send_count=r["send_count"],
+            )
+            for r in rows
+        ]
 
     # -- activity (dashboard feed) ----------------------------------------
 

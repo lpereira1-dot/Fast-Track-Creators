@@ -75,7 +75,9 @@ def sync_db_from_github(db_path: str) -> str | None:
     except Exception as exc:  # noqa: BLE001 -- never let a sync hiccup crash the page
         return f"⚠️ Could not sync from GitHub Actions ({exc}); showing local data only."
     if synced:
-        load_data.clear()  # don't let a stale cached read shadow the freshly-synced file
+        # Don't let a stale cached read shadow the freshly-synced file.
+        load_data.clear()
+        load_email_log.clear()
         return "✅ Synced with the latest GitHub Actions run."
     return "ℹ️ No GitHub Actions data artifact found yet -- showing local data only."
 
@@ -91,12 +93,76 @@ def load_data(db_path: str):
     return awards, activity
 
 
+@st.cache_data(ttl=300)
+def load_email_log(db_path: str):
+    store = StateStore(db_path)
+    try:
+        return store.all_creator_emails()
+    finally:
+        store.close()
+
+
 def fmt_pct(value: float | None) -> str:
     return "-" if value is None else f"{value:.1f}%"
 
 
 def fmt_num(value: float | None) -> str:
     return "-" if value is None else f"{value:.1f}"
+
+
+_EMAIL_TYPE_LABELS = {
+    "welcome": "Welcome",
+    "post_reminder": "Post reminder",
+    "sale_reminder": "Sale reminder",
+    "sale_congrats": "Sale congrats",
+}
+
+
+def render_creator_email_status(email_log: list) -> None:
+    """Send status for the creator lifecycle emails (see `workflow/creator_emails.py`).
+
+    Deliberately send status only, not open/click rates -- CreatorIQ's
+    bulk-email endpoint doesn't expose that, and rather than show a
+    fabricated or misleading number, this only shows what's actually known:
+    who got which email, when, and how many times (for repeating reminders).
+    """
+
+    st.subheader("Creator email status")
+    if not email_log:
+        st.caption(
+            "No lifecycle emails sent yet. Run `fast-track send-creator-emails` "
+            '(see README "Creator lifecycle emails") to start sending them.'
+        )
+        return
+
+    st.caption(
+        "Send status only \u2014 CreatorIQ's bulk-email endpoint doesn't expose open/click "
+        "tracking, so this shows who received what email and when, not whether they opened it."
+    )
+
+    creators_by_type: dict[str, set[str]] = {}
+    for entry in email_log:
+        creators_by_type.setdefault(entry.email_type, set()).add(entry.creator_id)
+
+    cols = st.columns(2 + len(_EMAIL_TYPE_LABELS))
+    cols[0].metric("Creators emailed", len({e.creator_id for e in email_log}))
+    cols[1].metric("Total sends (incl. repeats)", sum(e.send_count for e in email_log))
+    for i, (email_type, label) in enumerate(_EMAIL_TYPE_LABELS.items(), start=2):
+        cols[i].metric(label, len(creators_by_type.get(email_type, set())))
+
+    table = pd.DataFrame(
+        [
+            {
+                "Creator": e.creator_name,
+                "Email": e.creator_email,
+                "Email type": _EMAIL_TYPE_LABELS.get(e.email_type, e.email_type),
+                "Last sent": e.last_sent_at,
+                "Times sent": e.send_count,
+            }
+            for e in email_log
+        ]
+    ).sort_values("Last sent", ascending=False)
+    st.dataframe(table, use_container_width=True, hide_index=True)
 
 
 def main() -> None:
@@ -112,6 +178,8 @@ def main() -> None:
     sync_status = sync_db_from_github(settings.storage.db_path)
     if sync_status:
         st.caption(sync_status)
+
+    render_creator_email_status(load_email_log(settings.storage.db_path))
 
     awards, activity = load_data(settings.storage.db_path)
 

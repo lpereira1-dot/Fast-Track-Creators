@@ -311,6 +311,15 @@ this yet but want it deployed and ready), set **`CREATOR_EMAIL_MIN_JOIN_DATE`**
 before that date are excluded from all four emails permanently, so only
 creators joining from that date forward ever get emailed.
 
+**Dashboard status**: the dashboard has a "Creator email status" section
+showing who received which email, when, and how many times (for repeating
+reminders) — send status only, not open/click rates. CreatorIQ's
+bulk-email endpoint doesn't expose open/click tracking at all (and
+industry-wide, pixel-based open tracking is increasingly unreliable due to
+Apple Mail Privacy Protection and Gmail's image proxying), so rather than
+show a fabricated number, this dashboard only reports what's actually
+known to be true.
+
 ## Scheduling
 
 Three GitHub Actions workflows are included:
