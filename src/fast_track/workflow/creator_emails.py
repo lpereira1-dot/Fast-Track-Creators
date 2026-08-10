@@ -16,6 +16,11 @@ Rules (as specified by the program owner):
     over the reminders that run, since a creator who just succeeded
     doesn't need to also be nagged the same day.
 
+`CreatorEmailConfig.min_join_date`, if set, excludes anyone who joined
+before that date from ALL four emails -- so launching this feature after
+creators have already been in the program a while doesn't trigger a
+"catch-up" batch of now-stale-feeling welcomes/reminders for them.
+
 Designed to run daily (see `.github/workflows/creator-emails.yml`), driven
 off `StateStore.all_creators()` (populated by the weekly cohort job) and
 each creator's current activation status (`ReportsClient.fetch_activation`),
@@ -76,7 +81,12 @@ def _plan_emails_for_creator(
 
     cfg = settings.creator_email
     rules = settings.program
-    days_since_joined = (today - creator.joined_at.date()).days
+    joined_date = creator.joined_at.date()
+
+    if cfg.min_join_date is not None and joined_date < cfg.min_join_date:
+        return []  # joined before this feature's cutoff -- no catch-up batch for pre-existing creators
+
+    days_since_joined = (today - joined_date).days
     if not (0 <= days_since_joined <= rules.activation_window_days):
         return []  # outside the program window -- no lifecycle emails relevant anymore
 

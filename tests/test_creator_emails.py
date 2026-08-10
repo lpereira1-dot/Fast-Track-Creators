@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date
 
 from fast_track.config import Settings
@@ -225,6 +226,36 @@ def test_multiple_creators_due_for_same_email_are_batched_into_one_send(tmp_path
     assert len(sender.sent) == 1
     assert sorted(sender.sent[0][2]) == ["c-1", "c-2"]
     assert len(result.sent) == 2
+
+
+def test_min_join_date_excludes_creators_who_joined_before_the_cutoff(tmp_path):
+    # Joined well before the feature's launch cutoff -- should get NO
+    # catch-up emails at all, even though they'd otherwise be due one.
+    old_creator = _creator("c-old", "2026-08-01T00:00:00Z")
+    # Joined on/after the cutoff -- should be considered normally.
+    new_creator = _creator("c-new", "2026-08-17T00:00:00Z")
+    base_settings = _settings()
+    creator_email = replace(base_settings.creator_email, min_join_date=date(2026, 8, 17))
+    settings = replace(base_settings, creator_email=creator_email)
+
+    with StateStore(tmp_path / "state.db") as store:
+        store.upsert_creators([old_creator, new_creator])
+        client = FakeActivationClient({})
+        sender = FakeEmailSender()
+        result = run_creator_email_job(client, sender, store, settings, today=date(2026, 8, 17))
+
+    assert [(c.creator_id, t) for c, t in result.sent] == [("c-new", WELCOME)]
+
+
+def test_min_join_date_unset_considers_every_creator(tmp_path):
+    old_creator = _creator("c-old", "2026-08-01T00:00:00Z")
+    with StateStore(tmp_path / "state.db") as store:
+        store.upsert_creators([old_creator])
+        client = FakeActivationClient({})
+        sender = FakeEmailSender()
+        result = run_creator_email_job(client, sender, store, _settings(), today=date(2026, 8, 1))
+
+    assert [(c.creator_id, t) for c, t in result.sent] == [("c-old", WELCOME)]
 
 
 def test_send_failure_does_not_record_and_is_retried_next_run(tmp_path):

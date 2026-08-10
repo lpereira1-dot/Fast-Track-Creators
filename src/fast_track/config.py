@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from datetime import date
 
 from dotenv import load_dotenv
 
@@ -24,6 +25,11 @@ load_dotenv()
 
 def _env_str(name: str, default: str) -> str:
     return os.getenv(name, default)
+
+
+def _env_date(name: str, default: date | None = None) -> date | None:
+    value = os.getenv(name)
+    return date.fromisoformat(value) if value else default
 
 
 def _env_int(name: str, default: int) -> int:
@@ -209,6 +215,16 @@ class CreatorEmailConfig:
     # independently of demo mode once you're ready for a real first send.
     sending_enabled: bool = field(
         default_factory=lambda: _env_bool("CREATOR_EMAIL_SENDING_ENABLED", False)
+    )
+    # Only creators who joined the campaign on/after this date are
+    # considered for ANY of the four emails -- everyone who joined earlier
+    # is skipped entirely (no welcome, no reminders, no congrats), so
+    # turning this feature on doesn't send a "catch-up" batch to creators
+    # who were already partway through (or past) their window before it
+    # existed. Leave unset to consider every creator currently in-window
+    # (the default, e.g. for local testing).
+    min_join_date: date | None = field(
+        default_factory=lambda: _env_date("CREATOR_EMAIL_MIN_JOIN_DATE")
     )
 
 

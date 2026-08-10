@@ -296,14 +296,20 @@ CreatorIQ credentials configured at all, so merging/deploying this
 feature can never itself start emailing real creators — someone has to
 flip it on intentionally after reviewing a dry run.
 
-**Before your first real (non-dry) run**, note that it will send a
-one-time catch-up batch: every creator currently within the 14-day window
-who hasn't been welcomed yet gets Email 1, and anyone overdue for a
+**Before your first real (non-dry) run**, note that by default it will
+send a one-time catch-up batch: every creator currently within the 14-day
+window who hasn't been welcomed yet gets Email 1, and anyone overdue for a
 post/sale reminder gets one immediately — this could be a meaningful
 number of emails at once if the feature is turned on after creators have
 already been in the program a while (rather than from day one going
 forward). Run `--dry-run` first and review the full list before setting
 `CREATOR_EMAIL_SENDING_ENABLED=true`.
+
+To avoid that catch-up batch entirely (e.g. you're not ready to launch
+this yet but want it deployed and ready), set **`CREATOR_EMAIL_MIN_JOIN_DATE`**
+(`YYYY-MM-DD`) to your actual intended launch date — creators who joined
+before that date are excluded from all four emails permanently, so only
+creators joining from that date forward ever get emailed.
 
 ## Scheduling
 
