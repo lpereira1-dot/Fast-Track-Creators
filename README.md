@@ -266,14 +266,25 @@ Required repository secrets: `CREATORIQ_BASE_URL`, `CREATORIQ_API_KEY`,
 `CREATORIQ_CAMPAIGN_ID` (optional), `GIFT_ORDER_SHEET_ID`,
 `GOOGLE_SERVICE_ACCOUNT_JSON` (the full JSON key contents, pasted as a secret).
 
-> **Persistence note:** these workflows cache `data/fast_track.db` via
-> `actions/cache`, which is convenient but not guaranteed-durable long-term
-> storage (GitHub evicts caches unused for 7+ days). The Google Sheet itself
-> is a second line of defense against duplicate gift-card rows even if that
-> cache is lost, but the *dashboard's* activity history would need
-> re-backfilling. For a more durable setup, run the same CLI commands from
-> a small persistent host/VM via cron (pointing `FAST_TRACK_DB_PATH` at a
-> real disk), or swap `StateStore` for a hosted database.
+> **Persistence note:** these workflows carry `data/fast_track.db` forward
+> between runs by downloading the most recent `fast-track-db` artifact at
+> startup (`scripts/sync_db_from_artifact.py`) and re-uploading it at the
+> end (`actions/upload-artifact`) — the same mechanism the dashboard uses
+> to read this data (`src/fast_track/dashboard/db_sync.py`). This
+> deliberately replaced an earlier `actions/cache`-based approach, which
+> had a real bug: `actions/cache` never overwrites a cache entry once a
+> given key exists, so if a run is ever manually re-run, the re-run's
+> cache-save silently gets skipped and every later run keeps restoring
+> stale pre-re-run data indefinitely (this happened in practice and
+> quietly broke the dashboard for several days before being caught).
+> Artifacts are retained for 90 days (`retention-days: 90`), longer than
+> GitHub's ~7-day cache eviction window, but still not permanent. The
+> Google Sheet itself is a second line of defense against duplicate
+> gift-card rows even if that history is eventually lost, but the
+> *dashboard's* activity history would need re-backfilling. For a more
+> durable setup, run the same CLI commands from a small persistent
+> host/VM via cron (pointing `FAST_TRACK_DB_PATH` at a real disk), or swap
+> `StateStore` for a hosted database.
 
 ## Local development
 

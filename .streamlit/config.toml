@@ -1,0 +1,8 @@
+# Wayfair brand colors (https://www.brandcolorcode.com/wayfair):
+# Purple #7F187F (primary), Light Purple #A77AD7, Green #57C377, Yellow #FFC600.
+[theme]
+primaryColor = "#7F187F"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F6ECF6"
+textColor = "#262730"
+font = "sans serif"

@@ -1,12 +1,18 @@
 """Pulls the latest `data/fast_track.db` snapshot from GitHub Actions.
 
 The scheduled weekly-cohort/daily-activity-sync jobs run in GitHub Actions
-and persist their SQLite state as a `fast-track-db` artifact (see
-`.github/workflows/*.yml`) -- but a dashboard hosted elsewhere (e.g.
-Streamlit Community Cloud) is a completely separate runtime with no access
-to that filesystem. This downloads the latest such artifact so a
-separately-hosted dashboard can reflect the same data the scheduled jobs
-produced, without standing up a shared database service.
+and persist their SQLite state as a `fast-track-db` artifact at the end of
+every run (see `.github/workflows/*.yml`). This module is used two ways:
+
+1. By those same workflows, at the *start* of each run (via
+   `scripts/sync_db_from_artifact.py`), to carry state forward between
+   runs -- replacing a more fragile `actions/cache`-based approach that
+   silently stopped working after a run was ever re-run once (see that
+   script's docstring for the full story).
+2. By a dashboard hosted elsewhere (e.g. Streamlit Community Cloud) --
+   which is a completely separate runtime with no access to the GitHub
+   Actions filesystem -- so it can reflect the same data those scheduled
+   jobs produced, without standing up a shared database service.
 """
 
 from __future__ import annotations
