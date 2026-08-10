@@ -139,6 +139,16 @@ class CreatorIQConfig:
     # unrelated campaign.
     campaign_id: str = field(default_factory=lambda: _env_str("CREATORIQ_CAMPAIGN_ID", ""))
 
+    # Bulk-communication endpoint (send emails to publishers). Doesn't
+    # require a `FromMcn` value, unlike the campaign-scoped
+    # `CampaignMessaging` endpoint -- see `CreatorEmailConfig` below and
+    # `CreatorIQClient.send_bulk_email`.
+    sendbulk_path: str = field(
+        default_factory=lambda: _env_str(
+            "CREATORIQ_SENDBULK_PATH", "/crm/v1/api/communication/sendBulk"
+        )
+    )
+
     timeout_seconds: int = field(
         default_factory=lambda: _env_int("CREATORIQ_TIMEOUT_SECONDS", 30)
     )
@@ -151,6 +161,55 @@ class CreatorIQConfig:
 
     def has_credentials(self) -> bool:
         return bool(self.api_key and self.base_url)
+
+
+@dataclass(frozen=True)
+class CreatorEmailConfig:
+    """Settings for the creator lifecycle email reminders.
+
+    Sent via CreatorIQ's own bulk-communication endpoint (`POST
+    /crm/v1/api/communication/sendBulk`) rather than a separate email
+    service -- it accepts an HTML `MessageContent`, a subject, and a list
+    of publisher ids, and doesn't require a `FromMcn` value (unlike the
+    campaign-scoped `CampaignMessaging` endpoint, which does but has no
+    discoverable way to look that value up). See
+    `src/fast_track/emails/templates.py` for the four email bodies and
+    `src/fast_track/workflow/creator_emails.py` for send-trigger logic.
+    """
+
+    # How often an unresolved reminder (post or sale) repeats.
+    reminder_interval_days: int = field(
+        default_factory=lambda: _env_int("CREATOR_EMAIL_REMINDER_INTERVAL_DAYS", 2)
+    )
+    # Day (since joining) the "still hasn't posted" reminder starts.
+    post_reminder_start_day: int = field(
+        default_factory=lambda: _env_int("CREATOR_EMAIL_POST_REMINDER_START_DAY", 7)
+    )
+    creator_portal_url: str = field(
+        default_factory=lambda: _env_str(
+            "CREATOR_PORTAL_URL", "https://influencers.wayfair.com/connect/#welcome"
+        )
+    )
+    getting_started_guide_url: str = field(
+        default_factory=lambda: _env_str(
+            "GETTING_STARTED_GUIDE_URL", "https://canva.link/larewvo17ofsi70"
+        )
+    )
+    posting_guide_url: str = field(
+        default_factory=lambda: _env_str("POSTING_GUIDE_URL", "https://canva.link/t0bbxzuvsgek58m")
+    )
+    creator_collective_url: str = field(
+        default_factory=lambda: _env_str(
+            "CREATOR_COLLECTIVE_URL", "https://influencers.wayfair.com/connect/#ProgramTiers"
+        )
+    )
+    # Safety gate: even with real CreatorIQ credentials configured, sends
+    # are forced into dry-run mode until this is explicitly set true --
+    # separate from CREATORIQ_USE_FIXTURES, so this can be turned on/off
+    # independently of demo mode once you're ready for a real first send.
+    sending_enabled: bool = field(
+        default_factory=lambda: _env_bool("CREATOR_EMAIL_SENDING_ENABLED", False)
+    )
 
 
 @dataclass(frozen=True)
@@ -190,6 +249,7 @@ class Settings:
     creatoriq: CreatorIQConfig = field(default_factory=CreatorIQConfig)
     sheets: GoogleSheetsConfig = field(default_factory=GoogleSheetsConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
+    creator_email: CreatorEmailConfig = field(default_factory=CreatorEmailConfig)
 
 
 def get_settings() -> Settings:

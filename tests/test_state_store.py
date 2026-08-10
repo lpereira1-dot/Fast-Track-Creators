@@ -81,6 +81,32 @@ def test_resolve_first_post_dates_omits_creators_with_zero_count(tmp_path):
         assert observed == {}
 
 
+def test_record_email_sent_and_last_email_sent_at(tmp_path):
+    with StateStore(tmp_path / "state.db") as store:
+        assert store.last_email_sent_at("c-1", "welcome") is None
+        store.record_email_sent("c-1", "welcome", sent_at=date(2026, 7, 1))
+        assert store.last_email_sent_at("c-1", "welcome") == date(2026, 7, 1)
+
+
+def test_record_email_sent_updates_last_sent_and_count(tmp_path):
+    with StateStore(tmp_path / "state.db") as store:
+        store.record_email_sent("c-1", "post_reminder", sent_at=date(2026, 7, 1))
+        store.record_email_sent("c-1", "post_reminder", sent_at=date(2026, 7, 3))
+        assert store.last_email_sent_at("c-1", "post_reminder") == date(2026, 7, 3)
+        row = store._conn.execute(
+            "SELECT send_count FROM creator_emails WHERE creator_id = ? AND email_type = ?",
+            ("c-1", "post_reminder"),
+        ).fetchone()
+        assert row["send_count"] == 2
+
+
+def test_email_tracking_is_independent_per_email_type(tmp_path):
+    with StateStore(tmp_path / "state.db") as store:
+        store.record_email_sent("c-1", "welcome", sent_at=date(2026, 7, 1))
+        assert store.last_email_sent_at("c-1", "post_reminder") is None
+        assert store.last_email_sent_at("c-1", "welcome") == date(2026, 7, 1)
+
+
 def test_get_activity_filters_by_date_range(tmp_path):
     with StateStore(tmp_path / "state.db") as store:
         store.upsert_activity(

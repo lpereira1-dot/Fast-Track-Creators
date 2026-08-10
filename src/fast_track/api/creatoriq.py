@@ -71,6 +71,18 @@ class ReportsClient(Protocol):
         ...
 
 
+class EmailSender(Protocol):
+    """Interface for sending creator lifecycle emails -- implemented by
+
+    `CreatorIQClient` (real send via CreatorIQ's bulk-communication
+    endpoint) and `FixtureCreatorIQClient` (logs instead of sending, for
+    demo/tests). See `src/fast_track/workflow/creator_emails.py` for when
+    each email actually gets triggered.
+    """
+
+    def send_bulk_email(self, subject: str, html_body: str, creator_ids: list[str]) -> None: ...
+
+
 class FirstPostObserver(Protocol):
     """Persists the locally-observed "first post" date per creator.
 
@@ -475,6 +487,32 @@ class CreatorIQClient:
             for (creator_id, activity_date), bucket in daily.items()
         ]
 
+    def send_bulk_email(self, subject: str, html_body: str, creator_ids: list[str]) -> None:
+        """Send an HTML email to one or more creators via CreatorIQ.
+
+        `POST /crm/v1/api/communication/sendBulk` -- confirmed to work
+        without a `FromMcn` value, unlike the campaign-scoped
+        `CampaignMessaging` endpoint (which requires one, with no
+        discoverable way on this account to look up the right value).
+        Sends as a real email only (`type.Email = 1`, `type.Message = 0`)
+        -- doesn't also post an internal CRM message/chat entry.
+        """
+
+        if not creator_ids:
+            return
+        cfg = self._config
+        url = cfg.base_url.rstrip("/") + cfg.sendbulk_path
+        payload = {
+            "Subject": subject,
+            "MessageContent": html_body,
+            "type": {"Email": 1, "Message": 0},
+            "ToPublishers": [int(creator_id) for creator_id in creator_ids],
+        }
+        response = self._session.post(
+            url, headers=self._headers(), json=payload, timeout=cfg.timeout_seconds
+        )
+        response.raise_for_status()
+
 
 class FixtureCreatorIQClient:
     """Reads local JSON fixtures shaped like CreatorIQ API responses.
@@ -530,6 +568,17 @@ class FixtureCreatorIQClient:
             if creator is not None and creator.creator_id == str(creator_id):
                 return creator.email
         return ""
+
+    def send_bulk_email(self, subject: str, html_body: str, creator_ids: list[str]) -> None:
+        """No-op in demo/fixture mode -- just logs what would have been sent."""
+
+        if creator_ids:
+            logger.info(
+                "[fixture] Would send %r to %d creator(s): %s",
+                subject,
+                len(creator_ids),
+                ", ".join(creator_ids),
+            )
 
 
 def build_reports_client(

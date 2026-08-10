@@ -37,3 +37,10 @@ def test_fetch_creator_email_looks_up_from_fixture():
 def test_fetch_creator_email_returns_empty_for_unknown_creator():
     client = FixtureCreatorIQClient()
     assert client.fetch_creator_email("no-such-id") == ""
+
+
+def test_send_bulk_email_does_not_raise_in_fixture_mode():
+    client = FixtureCreatorIQClient()
+    # Just a no-op logger in demo/fixture mode -- should never raise.
+    client.send_bulk_email("Subject", "<p>Body</p>", ["c-1001"])
+    client.send_bulk_email("Subject", "<p>Body</p>", [])

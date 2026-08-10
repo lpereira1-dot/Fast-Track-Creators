@@ -38,12 +38,18 @@ class FakeSession:
 
     def __init__(self):
         self.calls: list[tuple[str, dict, dict]] = []
+        self.post_calls: list[tuple[str, dict, dict]] = []
         self.campaign_roster_pages: dict[str, list[list[dict]]] = {}
         self.network_id_by_internal_id: dict[str, str] = {}
         self.publishers_by_network_id: dict[str, dict] = {}
         self.contacts_by_address_id: dict[str, dict] = {}
         self.transactions: list[dict] = []
         self.transactions_page_size = 100
+        self.post_status_code = 204
+
+    def post(self, url, headers=None, json=None, timeout=None):
+        self.post_calls.append((url, json or {}, dict(headers or {})))
+        return FakeResponse({}, status_code=self.post_status_code)
 
     def get(self, url, headers=None, params=None, timeout=None):
         self.calls.append((url, dict(params or {}), dict(headers or {})))
@@ -286,6 +292,42 @@ def test_fetch_activity_returns_empty_without_campaign_id():
     client = CreatorIQClient(_config(campaign_id=""), session=FakeSession())
 
     assert client.fetch_activity(["10"], date(2026, 7, 1), date(2026, 8, 1)) == []
+
+
+def test_send_bulk_email_posts_expected_payload():
+    session = FakeSession()
+    client = CreatorIQClient(_config(campaign_id="555"), session=session)
+
+    client.send_bulk_email("Subject line", "<p>Body</p>", ["10", "20"])
+
+    assert len(session.post_calls) == 1
+    url, payload, headers = session.post_calls[0]
+    assert url.endswith("/crm/v1/api/communication/sendBulk")
+    assert payload == {
+        "Subject": "Subject line",
+        "MessageContent": "<p>Body</p>",
+        "type": {"Email": 1, "Message": 0},
+        "ToPublishers": [10, 20],
+    }
+    assert headers.get("x-api-key") == "test-key"
+
+
+def test_send_bulk_email_is_a_noop_for_empty_recipient_list():
+    session = FakeSession()
+    client = CreatorIQClient(_config(campaign_id="555"), session=session)
+
+    client.send_bulk_email("Subject", "<p>Body</p>", [])
+
+    assert session.post_calls == []
+
+
+def test_send_bulk_email_raises_on_http_error():
+    session = FakeSession()
+    session.post_status_code = 401
+    client = CreatorIQClient(_config(campaign_id="555"), session=session)
+
+    with pytest.raises(requests.HTTPError):
+        client.send_bulk_email("Subject", "<p>Body</p>", ["10"])
 
 
 def test_creatoriq_client_requires_credentials():

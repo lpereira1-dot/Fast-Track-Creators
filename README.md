@@ -13,10 +13,15 @@ Automates the Fast Track creator gift-card activation program:
 3. **Retention dashboard** — a Streamlit dashboard comparing each gifted
    creator's activity for 30 days before vs. after they received a gift
    card, so you can see the lift/retention the incentive drove.
+4. **Creator lifecycle emails** — welcome, post/sale reminder, and
+   first-sale-congrats emails sent automatically via CreatorIQ, so creators
+   get nudged to post/share their link without anyone manually messaging
+   them (see [Creator lifecycle emails](#creator-lifecycle-emails) below).
 
 Everything is idempotent and safe to re-run: a creator's milestone is only
 ever written to the sheet once, tracked both locally and by checking the
-sheet itself.
+sheet itself. Emails work the same way -- one-time emails never resend,
+and repeating reminders track when they last went out.
 
 ## How it fits together
 
@@ -30,6 +35,10 @@ CreatorIQ API                 fast-track run-weekly-job (weekly, e.g. every Mond
                                fast-track sync-activity (daily)
                                Refreshes each known creator's daily posts/sales/GMV
                                so the dashboard's pre/post windows stay current
+
+                               fast-track send-creator-emails (daily)
+                               Welcome / post-reminder / sale-reminder / sale-congrats
+                               emails, sent via CreatorIQ -- see below
 
 Local state (SQLite)  ────►   fast-track dashboard (Streamlit)
  creators, gift awards,       Pre/post 30-day activity + retention curve,
@@ -253,18 +262,67 @@ Cloud specifically, just something to keep a Python process alive and
 reachable over HTTP; `requirements.txt` at the repo root covers dependency
 installation for platforms that don't recognize `pyproject.toml` directly.
 
+## Creator lifecycle emails
+
+Run with `fast-track send-creator-emails [--dry-run]` (see
+`.github/workflows/creator-emails.yml` for the daily-scheduled version).
+Sends four emails, keyed off the same `DatePublisherAdded` ("joined") and
+activation data (`ActualPostsTotal`, qualifying-sale detection) already
+used for gift eligibility — see `src/fast_track/workflow/creator_emails.py`
+for the exact trigger logic and `src/fast_track/emails/templates.py` for
+the email copy:
+
+| # | Email | Trigger | Repeats? |
+|---|---|---|---|
+| 1 | Welcome / bonus intro | Once, as soon as possible after joining | No |
+| 2 | Posted, no sale yet | As soon as a first post is detected | Every `CREATOR_EMAIL_REMINDER_INTERVAL_DAYS` (default 2) until a qualifying sale or day 14 |
+| 3 | Still hasn't posted | Starting `CREATOR_EMAIL_POST_REMINDER_START_DAY` (default day 7) | Every `CREATOR_EMAIL_REMINDER_INTERVAL_DAYS` until a post or day 14 |
+| 4 | First sale congrats | As soon as a *qualifying* first sale is detected | No |
+
+A creator who just completed a qualifying sale only gets Email 4 that
+run — no reminder is also sent the same day. Sent via CreatorIQ's own
+bulk-communication endpoint (`POST /crm/v1/api/communication/sendBulk`),
+so no separate email service/credentials are needed — just the same
+CreatorIQ API key already configured. (CreatorIQ also has a
+campaign-scoped `CampaignMessaging` endpoint, but it requires a `FromMcn`
+value with no discoverable way to look it up for this account, so
+`sendBulk` is used instead.)
+
+**Safety gate:** real sends stay off — every run is forced into
+`--dry-run` — until `CREATOR_EMAIL_SENDING_ENABLED=true` is explicitly set
+(as a `.env` var locally, or a GitHub Actions repository secret for the
+scheduled workflow). This is deliberately a separate switch from having
+CreatorIQ credentials configured at all, so merging/deploying this
+feature can never itself start emailing real creators — someone has to
+flip it on intentionally after reviewing a dry run.
+
+**Before your first real (non-dry) run**, note that it will send a
+one-time catch-up batch: every creator currently within the 14-day window
+who hasn't been welcomed yet gets Email 1, and anyone overdue for a
+post/sale reminder gets one immediately — this could be a meaningful
+number of emails at once if the feature is turned on after creators have
+already been in the program a while (rather than from day one going
+forward). Run `--dry-run` first and review the full list before setting
+`CREATOR_EMAIL_SENDING_ENABLED=true`.
+
 ## Scheduling
 
-Two GitHub Actions workflows are included:
+Three GitHub Actions workflows are included:
 
 - [`weekly-gift-cohort.yml`](.github/workflows/weekly-gift-cohort.yml) —
   runs `fast-track run-weekly-job` every Monday.
 - [`daily-activity-sync.yml`](.github/workflows/daily-activity-sync.yml) —
   runs `fast-track sync-activity` daily to keep the dashboard current.
+- [`creator-emails.yml`](.github/workflows/creator-emails.yml) — runs
+  `fast-track send-creator-emails` daily. Stays in dry-run regardless of
+  schedule until `CREATOR_EMAIL_SENDING_ENABLED` is set (see
+  [Creator lifecycle emails](#creator-lifecycle-emails) above).
 
 Required repository secrets: `CREATORIQ_BASE_URL`, `CREATORIQ_API_KEY`,
 `CREATORIQ_CAMPAIGN_ID` (optional), `GIFT_ORDER_SHEET_ID`,
-`GOOGLE_SERVICE_ACCOUNT_JSON` (the full JSON key contents, pasted as a secret).
+`GOOGLE_SERVICE_ACCOUNT_JSON` (the full JSON key contents, pasted as a
+secret), and `CREATOR_EMAIL_SENDING_ENABLED` (only once you're ready for
+real creator emails to go out — see above).
 
 > **Persistence note:** these workflows carry `data/fast_track.db` forward
 > between runs by downloading the most recent `fast-track-db` artifact at
@@ -310,16 +368,22 @@ src/fast_track/
     weekly_job.py               Orchestrates the weekly pull -> eligibility -> sheet sync
     activity_sync.py             Refreshes daily activity history for the dashboard
     backfill.py                   One-time historical import (dashboard only, no sheet writes)
+    creator_emails.py              Welcome/reminder/congrats email trigger logic
+  emails/
+    templates.py                Email copy (HTML) for the four creator lifecycle emails
   sheets/
     gift_order_sheet.py        Idempotent Google Sheets append client
   storage/
-    state_store.py              SQLite: creators, recorded gift awards, daily activity
+    state_store.py              SQLite: creators, gift awards, daily activity, sent emails
   dashboard/
     metrics.py                   Pre/post retention math (pandas, independently testable)
     app.py                        Streamlit UI
+    db_sync.py                    Pulls the latest state from a GitHub Actions artifact
   cli.py                       `fast-track` command-line entrypoint
 fixtures/creatoriq/           Sample CreatorIQ-shaped JSON payloads for demos/tests
-scripts/generate_fixtures.py  Regenerates the fixtures above
+scripts/
+  generate_fixtures.py         Regenerates the fixtures above
+  sync_db_from_artifact.py       CI helper: restores state from the latest artifact (see below)
 tests/                        pytest suite (cohorts, eligibility, sheet idempotency, metrics, ...)
-.github/workflows/            Scheduled GitHub Actions for the weekly + daily jobs
+.github/workflows/            Scheduled GitHub Actions for the weekly/daily/email jobs
 ```

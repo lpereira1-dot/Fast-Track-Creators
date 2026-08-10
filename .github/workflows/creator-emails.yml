@@ -1,0 +1,64 @@
+name: Creator lifecycle emails
+
+# Sends welcome/reminder/first-sale-congrats emails to Fast Track creators
+# via CreatorIQ's bulk-communication endpoint.
+#
+# Real sends stay off until CREATOR_EMAIL_SENDING_ENABLED=true is set as a
+# repository secret -- without it, every run (scheduled or manual, and
+# regardless of the dry_run input below) is forced into --dry-run, so
+# merging/deploying this workflow alone can never start emailing real
+# creators. The dry_run input here is a secondary, workflow-level override
+# for manual test runs; the secret above is the real switch.
+#
+# Runs after both the weekly cohort job and daily activity sync so it sees
+# that day's roster/activation updates.
+
+on:
+  schedule:
+    - cron: "0 14 * * *" # 09:00 America/New_York (14:00 UTC) daily
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print who would be emailed without actually sending"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read # needed to look up/download the previous run's fast-track-db artifact
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      - name: Restore state database from latest artifact
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/sync_db_from_artifact.py
+
+      - name: Send creator lifecycle emails
+        env:
+          CREATORIQ_BASE_URL: ${{ secrets.CREATORIQ_BASE_URL }}
+          CREATORIQ_API_KEY: ${{ secrets.CREATORIQ_API_KEY }}
+          CREATORIQ_CAMPAIGN_ID: ${{ secrets.CREATORIQ_CAMPAIGN_ID }}
+          CREATOR_EMAIL_SENDING_ENABLED: ${{ secrets.CREATOR_EMAIL_SENDING_ENABLED }}
+        run: |
+          ARGS=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="--dry-run"; fi
+          fast-track send-creator-emails $ARGS
+
+      - name: Upload state database artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fast-track-db
+          path: data/fast_track.db
+          retention-days: 90

@@ -1,8 +1,9 @@
 """Command-line entrypoint for the Fast Track creator gift-card workflow.
 
-    fast-track run-weekly-job [--dry-run]   # pull new cohorts, sync gift-sheet
-    fast-track sync-activity                # refresh activity history for the dashboard
-    fast-track dashboard                    # launch the Streamlit retention dashboard
+    fast-track run-weekly-job [--dry-run]     # pull new cohorts, sync gift-sheet
+    fast-track sync-activity                  # refresh activity history for the dashboard
+    fast-track send-creator-emails [--dry-run]  # send lifecycle reminder/congrats emails
+    fast-track dashboard                      # launch the Streamlit retention dashboard
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from fast_track.sheets.gift_order_sheet import GiftOrderSheetClient
 from fast_track.storage.state_store import StateStore
 from fast_track.workflow.activity_sync import run_activity_sync_job
 from fast_track.workflow.backfill import run_backfill_job
+from fast_track.workflow.creator_emails import run_creator_email_job
 from fast_track.workflow.weekly_job import run_weekly_cohort_job
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -72,6 +74,35 @@ def cmd_sync_activity(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_send_creator_emails(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    dry_run = args.dry_run
+
+    # Safety gate, independent of --dry-run: even with real CreatorIQ
+    # credentials configured, real sends stay off until this is explicitly
+    # enabled -- see CreatorEmailConfig.sending_enabled. This is a live
+    # program with real creators on the other end, so a code/config change
+    # alone should never be enough to start sending for real.
+    if not settings.creator_email.sending_enabled and not dry_run:
+        logger.warning(
+            "CREATOR_EMAIL_SENDING_ENABLED is not set to true -- forcing --dry-run. "
+            "Set it explicitly once you're ready for real sends."
+        )
+        dry_run = True
+
+    with StateStore(settings.storage.db_path) as store:
+        reports_client = build_reports_client(settings.creatoriq, first_post_observer=store)
+        result = run_creator_email_job(
+            reports_client=reports_client,
+            email_sender=reports_client,
+            store=store,
+            settings=settings,
+            dry_run=dry_run,
+        )
+    print(result.summary())
+    return 0
+
+
 def cmd_dashboard(_args: argparse.Namespace) -> int:
     app_path = Path(__file__).resolve().parent / "dashboard" / "app.py"
     return subprocess.call([sys.executable, "-m", "streamlit", "run", str(app_path)])
@@ -103,6 +134,17 @@ def main(argv: list[str] | None = None) -> int:
         "sync-activity", help="Refresh daily activity history used by the retention dashboard."
     )
     activity.set_defaults(func=cmd_sync_activity)
+
+    creator_emails = subparsers.add_parser(
+        "send-creator-emails",
+        help="Send welcome/reminder/congrats lifecycle emails to creators via CreatorIQ.",
+    )
+    creator_emails.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print who would be emailed without actually sending or recording anything.",
+    )
+    creator_emails.set_defaults(func=cmd_send_creator_emails)
 
     dashboard = subparsers.add_parser("dashboard", help="Launch the Streamlit retention dashboard.")
     dashboard.set_defaults(func=cmd_dashboard)
