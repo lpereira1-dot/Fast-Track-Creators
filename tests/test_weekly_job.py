@@ -118,6 +118,36 @@ def test_weekly_job_awards_both_milestones_as_separate_fifty_dollar_total(tmp_pa
     assert ("c-both", "First Sale") in sheet.rows
 
 
+def test_weekly_job_self_heals_local_state_behind_the_sheet(tmp_path):
+    """If local state is ever behind the sheet's true content (e.g. after a
+
+    state-loss incident -- this guards against a real bug where a broken
+    GitHub Actions cache silently reset local history while the sheet
+    itself stayed correct), a run should catch local state back up to
+    reality, not just record whatever the sheet-level dedup decided was
+    new to *write* this run.
+    """
+
+    settings = Settings()
+    client = FixtureCreatorIQClient()
+    sheet = FakeSheetClient()
+    # Simulate the sheet already having one of the two awards from a
+    # previous run whose local record was lost (c-1009's First Post).
+    sheet.rows.append(("c-1009", "First Post"))
+
+    with StateStore(tmp_path / "state.db") as store:
+        result = run_weekly_cohort_job(
+            client, store, settings, sheet_client=sheet, today=date(2026, 8, 5)
+        )
+        # Only the genuinely-new one gets (re-)written to the sheet.
+        assert {a.creator.creator_id for a in result.newly_added_awards} == {"c-1012"}
+        assert len(sheet.rows) == 2  # unchanged count -- no duplicate for c-1009
+        # But local state reflects BOTH as recorded, not just the one that
+        # was newly appended to the sheet this run.
+        recorded_ids = {a.creator.creator_id for a in store.all_awards()}
+        assert recorded_ids == {"c-1009", "c-1012"}
+
+
 def test_weekly_job_dry_run_does_not_touch_sheet_or_state(tmp_path):
     settings = Settings()
     client = FixtureCreatorIQClient()

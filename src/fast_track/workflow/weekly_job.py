@@ -120,7 +120,16 @@ def run_weekly_cohort_job(
             )
     else:
         newly_added = sheet_client.append_awards(new_awards)
-        store.record_awards(newly_added)
+        # Record everything that currently qualifies and wasn't already
+        # locally known -- not just whatever the sheet-level dedup decided
+        # was new to *write* this run. record_awards is idempotent (INSERT
+        # OR IGNORE), so this is always safe, and it makes local state
+        # self-healing: if it's ever behind the sheet's true content (e.g.
+        # after a state-loss incident where local history was lost but the
+        # sheet itself still had these rows from before), it catches back
+        # up to reality on the very next run instead of permanently
+        # under-counting the same awards forever.
+        store.record_awards(new_awards)
 
     return WeeklyJobResult(
         window_start=window_start,
