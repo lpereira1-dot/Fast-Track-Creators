@@ -288,6 +288,21 @@ campaign-scoped `CampaignMessaging` endpoint, but it requires a `FromMcn`
 value with no discoverable way to look it up for this account, so
 `sendBulk` is used instead.)
 
+**`sendBulk`'s content restrictions (confirmed by sending real test
+emails, not documented anywhere):** it sits behind a WAF that silently
+403s the *entire* request if the HTML contains an inline `style="..."`
+attribute anywhere (no useful error — just a generic HTML error page),
+and separately, its own validation explicitly rejects certain tags
+(`<small>`) and attributes (`<font face="...">`) with a real 422 message.
+`src/fast_track/emails/templates.py` deliberately sticks to old-school,
+attribute-based HTML (`bgcolor`, `<font color>`, `cellpadding`) instead of
+modern inline CSS as a result — the "bulletproof button" pattern from
+before CSS support was reliable across email clients, which happens to
+also be exactly what's safe here. Set `CREATOR_EMAIL_LOGO_URL` to a
+directly-linkable image URL (not a Google Drive "view" share link — those
+require sign-in and show as a broken image) to add a logo to the header;
+left blank, the logo row is omitted entirely.
+
 **Safety gate:** real sends stay off — every run is forced into
 `--dry-run` — until `CREATOR_EMAIL_SENDING_ENABLED=true` is explicitly set
 (as a `.env` var locally, or a GitHub Actions repository secret for the

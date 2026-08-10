@@ -209,6 +209,12 @@ class CreatorEmailConfig:
             "CREATOR_COLLECTIVE_URL", "https://influencers.wayfair.com/connect/#ProgramTiers"
         )
     )
+    # A directly-linkable image URL (NOT a Google Drive "view" share link --
+    # those redirect to a sign-in page for anyone without access, so they
+    # render as a broken image for recipients) for the header logo. Left
+    # blank by default, in which case the logo row is omitted entirely
+    # rather than showing a broken image.
+    logo_url: str = field(default_factory=lambda: _env_str("CREATOR_EMAIL_LOGO_URL", ""))
     # Safety gate: even with real CreatorIQ credentials configured, sends
     # are forced into dry-run mode until this is explicitly set true --
     # separate from CREATORIQ_USE_FIXTURES, so this can be turned on/off

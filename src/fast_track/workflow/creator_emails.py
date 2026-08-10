@@ -105,12 +105,12 @@ def _plan_emails_for_creator(
         return [(SALE_CONGRATS, subject, body)]
 
     if store.last_email_sent_at(creator.creator_id, WELCOME) is None:
-        subject, body = templates.welcome_email(cfg)
+        subject, body = templates.welcome_email(cfg, today)
         planned.append((WELCOME, subject, body))
 
     if has_posted and not has_qualifying_sale:
         if _due_for_repeat(store, creator.creator_id, SALE_REMINDER, today, cfg.reminder_interval_days):
-            subject, body = templates.sale_reminder_email(cfg)
+            subject, body = templates.sale_reminder_email(cfg, today)
             planned.append((SALE_REMINDER, subject, body))
 
     if not has_posted and days_since_joined >= cfg.post_reminder_start_day:
