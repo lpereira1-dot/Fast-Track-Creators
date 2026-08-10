@@ -17,11 +17,15 @@ _SIGNOFF = "<p>The Wayfair Creator Team</p>"
 
 
 def _copyright_footer(today: date | None = None) -> str:
+    # Deliberately plain -- no inline `style="..."` attribute (confirmed
+    # live: CreatorIQ's sendBulk endpoint sits behind a WAF that silently
+    # 403s the *entire* request over one, going by the generic HTML error
+    # page rather than a JSON API error) and no `<small>` tag either
+    # (confirmed live: sendBulk's own validation explicitly rejects it --
+    # "MessageContent has not allowed HTML tags: small"). Just a plain
+    # `<p>`, like every other paragraph in these templates.
     year = (today or date.today()).year
-    return (
-        f"<p style=\"font-size:12px;color:#888;\">Copyright &copy; {year} "
-        "Wayfair. All rights reserved.</p>"
-    )
+    return f"<p>Copyright &copy; {year} Wayfair. All rights reserved.</p>"
 
 
 def welcome_email(config: CreatorEmailConfig) -> tuple[str, str]:
