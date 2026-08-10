@@ -1,11 +1,16 @@
 import io
+import sys
 import zipfile
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 import requests
 
 from fast_track.dashboard.db_sync import sync_db_from_github_artifact
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import sync_db_from_artifact  # noqa: E402
 
 
 def _zip_bytes(entries: dict[str, bytes]) -> bytes:
@@ -73,3 +78,40 @@ def test_sync_raises_on_http_error(tmp_path):
 
     with patch("requests.get", return_value=error_response), pytest.raises(requests.HTTPError):
         sync_db_from_github_artifact("owner/repo", "tok", tmp_path / "fast_track.db")
+
+
+class TestCiSyncScript:
+    """Covers scripts/sync_db_from_artifact.py -- the CI-bootstrap entrypoint
+
+    that replaced actions/cache in the scheduled workflows (see its
+    docstring for why). Never raises/exits non-zero: a sync problem here
+    should degrade to "start with an empty database", not fail the job.
+    """
+
+    def test_exits_cleanly_when_env_vars_missing(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+        monkeypatch.setenv("FAST_TRACK_DB_PATH", str(tmp_path / "fast_track.db"))
+
+        assert sync_db_from_artifact.main() == 0
+
+    def test_exits_cleanly_and_syncs_when_artifact_found(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+        monkeypatch.setenv("GITHUB_TOKEN", "tok")
+        dest = tmp_path / "fast_track.db"
+        monkeypatch.setenv("FAST_TRACK_DB_PATH", str(dest))
+
+        with patch.object(sync_db_from_artifact, "sync_db_from_github_artifact", return_value=True):
+            assert sync_db_from_artifact.main() == 0
+
+    def test_exits_cleanly_when_underlying_sync_raises(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+        monkeypatch.setenv("GITHUB_TOKEN", "tok")
+        monkeypatch.setenv("FAST_TRACK_DB_PATH", str(tmp_path / "fast_track.db"))
+
+        with patch.object(
+            sync_db_from_artifact,
+            "sync_db_from_github_artifact",
+            side_effect=requests.HTTPError("boom"),
+        ):
+            assert sync_db_from_artifact.main() == 0
