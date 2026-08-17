@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from datetime import date
 
 from dotenv import load_dotenv
 
@@ -24,6 +25,11 @@ load_dotenv()
 
 def _env_str(name: str, default: str) -> str:
     return os.getenv(name, default)
+
+
+def _env_date(name: str, default: date | None = None) -> date | None:
+    value = os.getenv(name)
+    return date.fromisoformat(value) if value else default
 
 
 def _env_int(name: str, default: int) -> int:
@@ -139,6 +145,16 @@ class CreatorIQConfig:
     # unrelated campaign.
     campaign_id: str = field(default_factory=lambda: _env_str("CREATORIQ_CAMPAIGN_ID", ""))
 
+    # Bulk-communication endpoint (send emails to publishers). Doesn't
+    # require a `FromMcn` value, unlike the campaign-scoped
+    # `CampaignMessaging` endpoint -- see `CreatorEmailConfig` below and
+    # `CreatorIQClient.send_bulk_email`.
+    sendbulk_path: str = field(
+        default_factory=lambda: _env_str(
+            "CREATORIQ_SENDBULK_PATH", "/crm/v1/api/communication/sendBulk"
+        )
+    )
+
     timeout_seconds: int = field(
         default_factory=lambda: _env_int("CREATORIQ_TIMEOUT_SECONDS", 30)
     )
@@ -151,6 +167,80 @@ class CreatorIQConfig:
 
     def has_credentials(self) -> bool:
         return bool(self.api_key and self.base_url)
+
+
+@dataclass(frozen=True)
+class CreatorEmailConfig:
+    """Settings for the creator lifecycle email reminders.
+
+    Sent via CreatorIQ's own bulk-communication endpoint (`POST
+    /crm/v1/api/communication/sendBulk`) rather than a separate email
+    service -- it accepts an HTML `MessageContent`, a subject, and a list
+    of publisher ids, and doesn't require a `FromMcn` value (unlike the
+    campaign-scoped `CampaignMessaging` endpoint, which does but has no
+    discoverable way to look that value up). See
+    `src/fast_track/emails/templates.py` for the four email bodies and
+    `src/fast_track/workflow/creator_emails.py` for send-trigger logic.
+    """
+
+    # How often an unresolved reminder (post or sale) repeats.
+    reminder_interval_days: int = field(
+        default_factory=lambda: _env_int("CREATOR_EMAIL_REMINDER_INTERVAL_DAYS", 2)
+    )
+    # Day (since joining) the "still hasn't posted" reminder starts.
+    post_reminder_start_day: int = field(
+        default_factory=lambda: _env_int("CREATOR_EMAIL_POST_REMINDER_START_DAY", 7)
+    )
+    creator_portal_url: str = field(
+        default_factory=lambda: _env_str(
+            "CREATOR_PORTAL_URL", "https://influencers.wayfair.com/connect/#welcome"
+        )
+    )
+    getting_started_guide_url: str = field(
+        default_factory=lambda: _env_str(
+            "GETTING_STARTED_GUIDE_URL", "https://canva.link/larewvo17ofsi70"
+        )
+    )
+    posting_guide_url: str = field(
+        default_factory=lambda: _env_str("POSTING_GUIDE_URL", "https://canva.link/t0bbxzuvsgek58m")
+    )
+    creator_collective_url: str = field(
+        default_factory=lambda: _env_str(
+            "CREATOR_COLLECTIVE_URL", "https://influencers.wayfair.com/connect/#ProgramTiers"
+        )
+    )
+    # A directly-linkable image URL (NOT a Google Drive "view" share link --
+    # those redirect to a sign-in page for anyone without access, so they
+    # render as a broken image for recipients) for the header logo. Defaults
+    # to Wayfair's own purple wordmark, hosted publicly on Wikimedia Commons
+    # (uploaded by the "Wayfair LLC" account as their own work). Override
+    # with CREATOR_EMAIL_LOGO_URL if you'd rather host your own copy. If
+    # ever set to an empty string, the logo row is omitted entirely rather
+    # than showing a broken image.
+    logo_url: str = field(
+        default_factory=lambda: _env_str(
+            "CREATOR_EMAIL_LOGO_URL",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/"
+            "Wayfair_2024_logo.svg/500px-Wayfair_2024_logo.svg.png",
+        )
+    )
+    # Safety gate: even with real CreatorIQ credentials configured, sends
+    # are forced into dry-run mode until this is explicitly set true --
+    # separate from CREATORIQ_USE_FIXTURES, so this can be turned on/off
+    # independently of demo mode once you're ready for a real first send.
+    sending_enabled: bool = field(
+        default_factory=lambda: _env_bool("CREATOR_EMAIL_SENDING_ENABLED", False)
+    )
+    # Only creators who joined the campaign on/after this date are
+    # considered for ANY of the four emails -- everyone who joined earlier
+    # is skipped entirely (no welcome, no reminders, no congrats), so
+    # turning this feature on doesn't send a "catch-up" batch to creators
+    # who were already partway through (or past) their window before it
+    # existed. Leave unset to consider every creator currently in-window
+    # (the default, e.g. for local testing).
+    min_join_date: date | None = field(
+        default_factory=lambda: _env_date("CREATOR_EMAIL_MIN_JOIN_DATE")
+    )
 
 
 @dataclass(frozen=True)
@@ -190,6 +280,7 @@ class Settings:
     creatoriq: CreatorIQConfig = field(default_factory=CreatorIQConfig)
     sheets: GoogleSheetsConfig = field(default_factory=GoogleSheetsConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
+    creator_email: CreatorEmailConfig = field(default_factory=CreatorEmailConfig)
 
 
 def get_settings() -> Settings:

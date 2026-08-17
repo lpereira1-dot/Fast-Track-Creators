@@ -119,3 +119,18 @@ class GiftAward:
     amount_usd: float
     completed_at: datetime
     cohort_week_start: date
+
+
+@dataclass(frozen=True)
+class CreatorEmailLog:
+    """A record of one lifecycle email type sent to one creator (see
+
+    `workflow/creator_emails.py` and `StateStore.all_creator_emails`).
+    """
+
+    creator_id: str
+    creator_name: str
+    creator_email: str
+    email_type: str
+    last_sent_at: date
+    send_count: int

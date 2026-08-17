@@ -81,6 +81,58 @@ def test_resolve_first_post_dates_omits_creators_with_zero_count(tmp_path):
         assert observed == {}
 
 
+def test_record_email_sent_and_last_email_sent_at(tmp_path):
+    with StateStore(tmp_path / "state.db") as store:
+        assert store.last_email_sent_at("c-1", "welcome") is None
+        store.record_email_sent("c-1", "welcome", sent_at=date(2026, 7, 1))
+        assert store.last_email_sent_at("c-1", "welcome") == date(2026, 7, 1)
+
+
+def test_record_email_sent_updates_last_sent_and_count(tmp_path):
+    with StateStore(tmp_path / "state.db") as store:
+        store.record_email_sent("c-1", "post_reminder", sent_at=date(2026, 7, 1))
+        store.record_email_sent("c-1", "post_reminder", sent_at=date(2026, 7, 3))
+        assert store.last_email_sent_at("c-1", "post_reminder") == date(2026, 7, 3)
+        row = store._conn.execute(
+            "SELECT send_count FROM creator_emails WHERE creator_id = ? AND email_type = ?",
+            ("c-1", "post_reminder"),
+        ).fetchone()
+        assert row["send_count"] == 2
+
+
+def test_email_tracking_is_independent_per_email_type(tmp_path):
+    with StateStore(tmp_path / "state.db") as store:
+        store.record_email_sent("c-1", "welcome", sent_at=date(2026, 7, 1))
+        assert store.last_email_sent_at("c-1", "post_reminder") is None
+        assert store.last_email_sent_at("c-1", "welcome") == date(2026, 7, 1)
+
+
+def test_all_creator_emails_returns_empty_when_none_sent(tmp_path):
+    with StateStore(tmp_path / "state.db") as store:
+        assert store.all_creator_emails() == []
+
+
+def test_all_creator_emails_joins_creator_info_and_sorts_by_recency(tmp_path):
+    with StateStore(tmp_path / "state.db") as store:
+        store.upsert_creators([creator("c-1"), creator("c-2")])
+        store.record_email_sent("c-1", "welcome", sent_at=date(2026, 7, 1))
+        store.record_email_sent("c-1", "post_reminder", sent_at=date(2026, 7, 8))
+        store.record_email_sent("c-1", "post_reminder", sent_at=date(2026, 7, 10))
+        store.record_email_sent("c-2", "welcome", sent_at=date(2026, 7, 5))
+
+        log = store.all_creator_emails()
+
+        assert [e.last_sent_at for e in log] == sorted(
+            (e.last_sent_at for e in log), reverse=True
+        )
+        by_key = {(e.creator_id, e.email_type): e for e in log}
+        assert by_key[("c-1", "welcome")].creator_name == "c-1"
+        assert by_key[("c-1", "welcome")].creator_email == "c-1@example.com"
+        assert by_key[("c-1", "post_reminder")].last_sent_at == date(2026, 7, 10)
+        assert by_key[("c-1", "post_reminder")].send_count == 2
+        assert by_key[("c-2", "welcome")].send_count == 1
+
+
 def test_get_activity_filters_by_date_range(tmp_path):
     with StateStore(tmp_path / "state.db") as store:
         store.upsert_activity(
