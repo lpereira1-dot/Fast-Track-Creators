@@ -4,7 +4,7 @@ name: Weekly gift-card cohort sync
 # first-post & first-sale gift eligibility, and appends newly-qualified
 # creators (name + email) to the gift-card ordering Google Sheet.
 #
-# Runs every Tuesday morning, one day after the campaign week rolls over,
+# Runs every Tuesday at 2 PM ET, one day after the campaign week rolls over,
 # so Monday's newly-admitted cohort is fully finished/settled in CreatorIQ
 # before this pulls it -- avoids catching a partial cohort mid-add.
 # Re-running never double-orders a gift card thanks to idempotent state
@@ -12,7 +12,7 @@ name: Weekly gift-card cohort sync
 
 on:
   schedule:
-    - cron: "0 13 * * 2" # 08:00 America/New_York (13:00 UTC) every Tuesday
+    - cron: "0 18 * * 2" # 14:00 America/New_York during EDT (18:00 UTC); 13:00 during EST
   workflow_dispatch:
     inputs:
       dry_run:

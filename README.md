@@ -347,8 +347,8 @@ known to be true.
 Three GitHub Actions workflows are included:
 
 - [`weekly-gift-cohort.yml`](.github/workflows/weekly-gift-cohort.yml) —
-  runs `fast-track run-weekly-job` every Tuesday, one day after the
-  campaign week rolls over, so the newly-admitted cohort is fully
+  runs `fast-track run-weekly-job` every Tuesday at 2 PM ET, one day after
+  the campaign week rolls over, so the newly-admitted cohort is fully
   finished/settled in CreatorIQ before it's pulled.
 - [`daily-activity-sync.yml`](.github/workflows/daily-activity-sync.yml) —
   runs `fast-track sync-activity` daily to keep the dashboard current.
