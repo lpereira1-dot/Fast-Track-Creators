@@ -298,10 +298,13 @@ and separately, its own validation explicitly rejects certain tags
 attribute-based HTML (`bgcolor`, `<font color>`, `cellpadding`) instead of
 modern inline CSS as a result — the "bulletproof button" pattern from
 before CSS support was reliable across email clients, which happens to
-also be exactly what's safe here. Set `CREATOR_EMAIL_LOGO_URL` to a
-directly-linkable image URL (not a Google Drive "view" share link — those
-require sign-in and show as a broken image) to add a logo to the header;
-left blank, the logo row is omitted entirely.
+also be exactly what's safe here. `CREATOR_EMAIL_LOGO_URL` defaults to
+Wayfair's own purple wordmark, hosted publicly on Wikimedia Commons
+(uploaded by the "Wayfair LLC" account as their own work), so the header
+logo works out of the box. Override it with any other directly-linkable
+image URL (not a Google Drive "view" share link — those require sign-in
+and show as a broken image), or set it to an empty string to omit the
+logo row entirely.
 
 **Safety gate:** real sends stay off — every run is forced into
 `--dry-run` — until `CREATOR_EMAIL_SENDING_ENABLED=true` is explicitly set

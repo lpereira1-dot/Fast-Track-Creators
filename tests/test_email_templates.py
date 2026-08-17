@@ -82,8 +82,26 @@ def test_button_uses_brand_purple_and_no_style_attribute():
         assert 'bgcolor="#7b189f"' in body
 
 
-def test_logo_row_omitted_when_logo_url_is_blank():
+def test_logo_url_defaults_to_the_public_wayfair_wordmark():
+    """Left unset, `CreatorEmailConfig.logo_url` should resolve to a public,
+
+    directly-linkable Wayfair logo (not a Google Drive share link) so the
+    header logo works out of the box without extra configuration.
+    """
+
     cfg = _config()
+    assert cfg.logo_url.startswith("https://upload.wikimedia.org/")
+    assert cfg.logo_url.endswith(".png")
+
+
+def test_logo_row_omitted_when_logo_url_is_blank():
+    cfg = CreatorEmailConfig(
+        creator_portal_url="https://example.com/portal",
+        getting_started_guide_url="https://example.com/guide",
+        posting_guide_url="https://example.com/posting",
+        creator_collective_url="https://example.com/collective",
+        logo_url="",
+    )
     assert cfg.logo_url == ""
     _subject, body = templates.welcome_email(cfg, date(2026, 8, 17))
     assert "<img" not in body

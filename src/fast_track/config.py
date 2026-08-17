@@ -211,10 +211,19 @@ class CreatorEmailConfig:
     )
     # A directly-linkable image URL (NOT a Google Drive "view" share link --
     # those redirect to a sign-in page for anyone without access, so they
-    # render as a broken image for recipients) for the header logo. Left
-    # blank by default, in which case the logo row is omitted entirely
-    # rather than showing a broken image.
-    logo_url: str = field(default_factory=lambda: _env_str("CREATOR_EMAIL_LOGO_URL", ""))
+    # render as a broken image for recipients) for the header logo. Defaults
+    # to Wayfair's own purple wordmark, hosted publicly on Wikimedia Commons
+    # (uploaded by the "Wayfair LLC" account as their own work). Override
+    # with CREATOR_EMAIL_LOGO_URL if you'd rather host your own copy. If
+    # ever set to an empty string, the logo row is omitted entirely rather
+    # than showing a broken image.
+    logo_url: str = field(
+        default_factory=lambda: _env_str(
+            "CREATOR_EMAIL_LOGO_URL",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/"
+            "Wayfair_2024_logo.svg/500px-Wayfair_2024_logo.svg.png",
+        )
+    )
     # Safety gate: even with real CreatorIQ credentials configured, sends
     # are forced into dry-run mode until this is explicitly set true --
     # separate from CREATORIQ_USE_FIXTURES, so this can be turned on/off
