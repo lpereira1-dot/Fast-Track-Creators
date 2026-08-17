@@ -51,6 +51,12 @@ jobs:
           CREATORIQ_API_KEY: ${{ secrets.CREATORIQ_API_KEY }}
           CREATORIQ_CAMPAIGN_ID: ${{ secrets.CREATORIQ_CAMPAIGN_ID }}
           CREATOR_EMAIL_SENDING_ENABLED: ${{ secrets.CREATOR_EMAIL_SENDING_ENABLED }}
+          # Launch cutoff: only creators admitted on/after this date ever get
+          # emailed, so turning this on doesn't trigger a one-time catch-up
+          # batch to everyone already further along in the 14-day window.
+          # This is a fixed launch marker, not meant to move -- update it
+          # only if the actual launch date changes before go-live.
+          CREATOR_EMAIL_MIN_JOIN_DATE: "2026-08-17"
         run: |
           ARGS=""
           if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="--dry-run"; fi

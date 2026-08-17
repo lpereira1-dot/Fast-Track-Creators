@@ -26,7 +26,7 @@ and repeating reminders track when they last went out.
 ## How it fits together
 
 ```
-CreatorIQ API                 fast-track run-weekly-job (weekly, e.g. every Monday)
+CreatorIQ API                 fast-track run-weekly-job (weekly, every Tuesday)
  (publishers,       ────►     1. Pull creators who joined in the last ~3 weeks
   activation,                 2. Evaluate $25 first-post / $25 first-sale eligibility
   activity reports)           3. Append newly-qualified creators to the Google Sheet
@@ -327,7 +327,11 @@ To avoid that catch-up batch entirely (e.g. you're not ready to launch
 this yet but want it deployed and ready), set **`CREATOR_EMAIL_MIN_JOIN_DATE`**
 (`YYYY-MM-DD`) to your actual intended launch date — creators who joined
 before that date are excluded from all four emails permanently, so only
-creators joining from that date forward ever get emailed.
+creators joining from that date forward ever get emailed. This program
+launches with the cohort admitted on 2026-08-17, so
+[`creator-emails.yml`](.github/workflows/creator-emails.yml) has this
+cutoff baked in already — update it there if the actual launch date ends
+up moving.
 
 **Dashboard status**: the dashboard has a "Creator email status" section
 showing who received which email, when, and how many times (for repeating
@@ -343,7 +347,9 @@ known to be true.
 Three GitHub Actions workflows are included:
 
 - [`weekly-gift-cohort.yml`](.github/workflows/weekly-gift-cohort.yml) —
-  runs `fast-track run-weekly-job` every Monday.
+  runs `fast-track run-weekly-job` every Tuesday, one day after the
+  campaign week rolls over, so the newly-admitted cohort is fully
+  finished/settled in CreatorIQ before it's pulled.
 - [`daily-activity-sync.yml`](.github/workflows/daily-activity-sync.yml) —
   runs `fast-track sync-activity` daily to keep the dashboard current.
 - [`creator-emails.yml`](.github/workflows/creator-emails.yml) — runs
