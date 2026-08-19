@@ -1,3 +1,6 @@
+# Editable install so `import fast_track` works when Streamlit Cloud uses
+# `streamlit_app.py` as the entry point.
+-e .
 requests>=2.31
 python-dotenv>=1.0
 gspread>=6.1

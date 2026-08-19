@@ -54,7 +54,7 @@ st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layou
 
 # Bumped when dashboard behavior changes -- visible in the sidebar so you
 # can confirm Streamlit Cloud picked up a new deploy after merging.
-_DASHBOARD_BUILD = "2026-08-19-cohort-filter-v2"
+_DASHBOARD_BUILD = "2026-08-19-v3"
 
 
 @st.cache_data(ttl=300)
@@ -218,7 +218,7 @@ def main() -> None:
     week_start_weekday = settings.program.cohort_week_start_weekday
     st.title("🎁 Fast Track Creators — Gift Card Activation & Retention")
     st.caption(
-        "$25 gift card for a creator's first post within "
+        f"Build {_DASHBOARD_BUILD} · $25 gift card for a creator's first post within "
         f"{settings.program.activation_window_days} days of joining, plus $25 for their first sale. "
         f"This dashboard compares creator activity {settings.program.retention_window_days} days "
         "before vs. after they received a gift card."
