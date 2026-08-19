@@ -239,8 +239,8 @@ Running it locally (`fast-track dashboard`) only gives you a `localhost`
 URL. To get an actual link your team can open, deploy it to
 [Streamlit Community Cloud](https://share.streamlit.io) (free):
 
-1. Go to share.streamlit.io → **New app** → pick this repo/branch and set
-   the main file path to `src/fast_track/dashboard/app.py`.
+1. Go to share.streamlit.io → **New app** → pick this repo/`main` branch and set
+   the main file path to `streamlit_app.py` (or `src/fast_track/dashboard/app.py`).
 2. Before (or after) deploying, open the app's **Settings → Secrets** and
    paste in values based on `.streamlit/secrets.toml.example` (copy that
    file's contents, fill in real values — `CREATORIQ_API_KEY`,
@@ -255,6 +255,13 @@ URL. To get an actual link your team can open, deploy it to
    awards recorded yet" forever. With it, the dashboard downloads the
    latest `fast-track-db` artifact those workflows already upload on every
    run (see `src/fast_track/dashboard/db_sync.py`) each time it loads.
+
+After merging dashboard changes, Streamlit Cloud does **not** always
+auto-redeploy immediately — open your app at share.streamlit.io →
+**Manage app** → **Reboot app** (or **⋮** → **Redeploy**) to pick up the
+latest `main`. Confirm the sidebar shows the build stamp (e.g.
+`Build 2026-08-19-cohort-filter`) and use **Refresh data** to pull the
+latest GitHub Actions database artifact.
 
 Any other host that runs a `streamlit run` command works too (Render,
 Railway, Fly.io, a small VM, etc.) — the app doesn't require Streamlit

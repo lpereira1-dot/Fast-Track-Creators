@@ -51,6 +51,10 @@ from fast_track.models import Creator  # noqa: E402
 
 st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layout="wide")
 
+# Bumped when dashboard behavior changes -- visible in the sidebar so you
+# can confirm Streamlit Cloud picked up a new deploy after merging.
+_DASHBOARD_BUILD = "2026-08-19-cohort-filter"
+
 
 @st.cache_data(ttl=300)
 def sync_db_from_github(db_path: str) -> str | None:
@@ -220,12 +224,35 @@ def main() -> None:
     )
 
     sync_status = sync_db_from_github(settings.storage.db_path)
-    if sync_status:
-        st.caption(sync_status)
+    github_configured = bool(os.getenv("GITHUB_REPO") and os.getenv("GITHUB_TOKEN"))
 
     creators = load_creators(settings.storage.db_path)
     awards, activity = load_data(settings.storage.db_path)
     email_log = load_email_log(settings.storage.db_path)
+
+    with st.sidebar:
+        st.caption(f"Build {_DASHBOARD_BUILD}")
+        if st.button("Refresh data", help="Re-download the latest database from GitHub Actions"):
+            sync_db_from_github.clear()
+            load_creators.clear()
+            load_data.clear()
+            load_email_log.clear()
+            st.rerun()
+
+    if not github_configured:
+        st.warning(
+            "GitHub sync is not configured. Add `GITHUB_REPO` and `GITHUB_TOKEN` "
+            "(Actions: Read-only) in Streamlit **Settings -> Secrets** so this "
+            "dashboard can download the latest roster and email log from GitHub "
+            "Actions. Without them, the cohort filter and email status will stay empty."
+        )
+    elif sync_status:
+        st.caption(sync_status)
+
+    if github_configured and creators:
+        st.caption(
+            f"Roster: {len(creators)} creator(s) · Email log: {len(email_log)} send record(s)"
+        )
 
     _cohort_by_creator, cohorts_by_week = _build_cohort_index(creators, week_start_weekday)
     cohort_weeks = sorted(cohorts_by_week.keys())
@@ -255,7 +282,13 @@ def main() -> None:
             )
         else:
             selected_cohorts = []
-            st.caption("No creators in the roster yet.")
+            if github_configured:
+                st.caption(
+                    "No creators in the roster yet. Run the weekly cohort job "
+                    "(Tuesdays) or click **Refresh data** after it completes."
+                )
+            else:
+                st.caption("Configure GitHub sync (see warning above) to load the roster.")
 
         window_days = st.slider(
             "Retention window (days pre/post gift)",
