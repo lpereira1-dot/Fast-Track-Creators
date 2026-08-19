@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 # Allow `streamlit run src/fast_track/dashboard/app.py` without installing the package.
@@ -46,7 +47,7 @@ from fast_track.dashboard.metrics import (  # noqa: E402
     retention_curve,
     summarize_retention,
 )
-from fast_track.storage.state_store import StateStore  # noqa: E402
+from fast_track.models import Creator  # noqa: E402
 
 st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layout="wide")
 
@@ -78,8 +79,18 @@ def sync_db_from_github(db_path: str) -> str | None:
         # Don't let a stale cached read shadow the freshly-synced file.
         load_data.clear()
         load_email_log.clear()
+        load_creators.clear()
         return "✅ Synced with the latest GitHub Actions run."
     return "ℹ️ No GitHub Actions data artifact found yet -- showing local data only."
+
+
+@st.cache_data(ttl=300)
+def load_creators(db_path: str) -> list[Creator]:
+    store = StateStore(db_path)
+    try:
+        return store.all_creators()
+    finally:
+        store.close()
 
 
 @st.cache_data(ttl=300)
@@ -102,6 +113,28 @@ def load_email_log(db_path: str):
         store.close()
 
 
+def _cohort_week_start(joined: date, week_start_weekday: int) -> date:
+    """Bucket a join date into its cohort week (matches `Creator.cohort_week_start`)."""
+
+    target = week_start_weekday - 1
+    delta_days = (joined.weekday() - target) % 7
+    return joined - timedelta(days=delta_days)
+
+
+def _build_cohort_index(
+    creators: list[Creator], week_start_weekday: int
+) -> tuple[dict[str, date], dict[date, list[Creator]]]:
+    """Map creator_id -> cohort week, and cohort week -> creators in that week."""
+
+    by_creator: dict[str, date] = {}
+    by_week: dict[date, list[Creator]] = {}
+    for creator in creators:
+        week = creator.cohort_week_start(week_start_weekday)
+        by_creator[creator.creator_id] = week
+        by_week.setdefault(week, []).append(creator)
+    return by_creator, by_week
+
+
 def fmt_pct(value: float | None) -> str:
     return "-" if value is None else f"{value:.1f}%"
 
@@ -118,7 +151,7 @@ _EMAIL_TYPE_LABELS = {
 }
 
 
-def render_creator_email_status(email_log: list) -> None:
+def render_creator_email_status(email_log: list, cohort_creators: list[Creator]) -> None:
     """Send status for the creator lifecycle emails (see `workflow/creator_emails.py`).
 
     Deliberately send status only, not open/click rates -- CreatorIQ's
@@ -128,11 +161,21 @@ def render_creator_email_status(email_log: list) -> None:
     """
 
     st.subheader("Creator email status")
+    if not cohort_creators:
+        st.caption("No creators in the selected cohort week.")
+        return
+
+    cohort_ids = {c.creator_id for c in cohort_creators}
+    email_log = [entry for entry in email_log if entry.creator_id in cohort_ids]
+
     if not email_log:
         st.caption(
-            "No lifecycle emails sent yet. Run `fast-track send-creator-emails` "
-            '(see README "Creator lifecycle emails") to start sending them.'
+            f"{len(cohort_creators)} creator(s) in this cohort — no lifecycle emails sent yet."
         )
+        roster = pd.DataFrame(
+            [{"Creator": c.name, "Email": c.email, "Admitted": c.joined_at.date()} for c in cohort_creators]
+        ).sort_values("Admitted")
+        st.dataframe(roster, use_container_width=True, hide_index=True)
         return
 
     st.caption(
@@ -167,6 +210,7 @@ def render_creator_email_status(email_log: list) -> None:
 
 def main() -> None:
     settings = get_settings()
+    week_start_weekday = settings.program.cohort_week_start_weekday
     st.title("🎁 Fast Track Creators — Gift Card Activation & Retention")
     st.caption(
         "$25 gift card for a creator's first post within "
@@ -179,23 +223,40 @@ def main() -> None:
     if sync_status:
         st.caption(sync_status)
 
-    render_creator_email_status(load_email_log(settings.storage.db_path))
-
+    creators = load_creators(settings.storage.db_path)
     awards, activity = load_data(settings.storage.db_path)
+    email_log = load_email_log(settings.storage.db_path)
 
-    if not awards:
-        st.info(
-            "No gift awards recorded yet. Run the weekly cohort job "
-            "(`fast-track run-weekly-job`) to pull activation data from CreatorIQ and "
-            "populate this dashboard, or `python scripts/generate_fixtures.py` + "
-            "`CREATORIQ_USE_FIXTURES=true fast-track run-weekly-job` for a demo."
-        )
-        return
-
-    gift_events = build_gift_events(awards)
+    _cohort_by_creator, cohorts_by_week = _build_cohort_index(creators, week_start_weekday)
+    cohort_weeks = sorted(cohorts_by_week.keys())
+    current_cohort_week = _cohort_week_start(date.today(), week_start_weekday)
 
     with st.sidebar:
         st.header("Filters")
+        if cohort_weeks:
+            default_cohorts = (
+                [current_cohort_week]
+                if current_cohort_week in cohort_weeks
+                else [cohort_weeks[-1]]
+            )
+
+            def _format_cohort_week(week_start: date) -> str:
+                count = len(cohorts_by_week.get(week_start, []))
+                label = week_start.strftime("%b %d, %Y")
+                if week_start == current_cohort_week:
+                    label = f"This week ({label})"
+                return f"{label} — {count} creator(s)"
+
+            selected_cohorts = st.multiselect(
+                "Cohort week (admitted)",
+                options=cohort_weeks,
+                default=default_cohorts,
+                format_func=_format_cohort_week,
+            )
+        else:
+            selected_cohorts = []
+            st.caption("No creators in the roster yet.")
+
         window_days = st.slider(
             "Retention window (days pre/post gift)",
             min_value=7,
@@ -203,30 +264,55 @@ def main() -> None:
             value=settings.program.retention_window_days,
             step=1,
         )
+
+    selected_creator_ids = {
+        creator.creator_id
+        for week in selected_cohorts
+        for creator in cohorts_by_week.get(week, [])
+    }
+    cohort_creators = [
+        creator for creator in creators if creator.creator_id in selected_creator_ids
+    ]
+    render_creator_email_status(email_log, cohort_creators)
+
+    if not awards:
+        if cohort_creators:
+            st.info(
+                "No gift awards recorded for the selected cohort yet. Gift-card rows "
+                "appear here once creators hit their first-post or first-sale milestones "
+                "(after the weekly cohort job runs on Tuesdays)."
+            )
+        else:
+            st.info(
+                "No creators in the roster yet. Run the weekly cohort job "
+                "(`fast-track run-weekly-job`) to pull activation data from CreatorIQ, "
+                "or `python scripts/generate_fixtures.py` + "
+                "`CREATORIQ_USE_FIXTURES=true fast-track run-weekly-job` for a demo."
+            )
+        return
+
+    gift_events = build_gift_events(awards)
+
+    with st.sidebar:
         milestone_options = sorted(
             {m.strip() for row in gift_events["milestones"] for m in row.split(",")}
         )
         selected_milestones = st.multiselect(
             "Milestone", options=milestone_options, default=milestone_options
         )
-        cohort_weeks = sorted(
-            {pd.Timestamp(d).to_period("W-MON").start_time.date() for d in gift_events["joined_at"]}
-        )
-        selected_cohorts = st.multiselect(
-            "Cohort week (joined)", options=cohort_weeks, default=cohort_weeks
-        )
 
     filtered_events = gift_events[
-        gift_events["milestones"].apply(
+        gift_events["creator_id"].isin(selected_creator_ids)
+        & gift_events["milestones"].apply(
             lambda row: any(m.strip() in selected_milestones for m in row.split(","))
-        )
-        & gift_events["joined_at"].apply(
-            lambda d: pd.Timestamp(d).to_period("W-MON").start_time.date() in selected_cohorts
         )
     ]
 
     if filtered_events.empty:
-        st.warning("No creators match the selected filters.")
+        st.warning(
+            "No gifted creators in the selected cohort week yet. "
+            "Try selecting a different cohort week, or check back after milestones are hit."
+        )
         return
 
     daily_offsets = build_daily_offsets(filtered_events, activity, window_days)
@@ -287,7 +373,7 @@ def main() -> None:
     cohort_summary = (
         filtered_events.assign(
             cohort_week=lambda df: df["joined_at"].apply(
-                lambda d: pd.Timestamp(d).to_period("W-MON").start_time.date()
+                lambda d: _cohort_week_start(d, week_start_weekday)
             )
         )
         .groupby("cohort_week")
