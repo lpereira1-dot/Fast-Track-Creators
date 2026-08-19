@@ -48,12 +48,13 @@ from fast_track.dashboard.metrics import (  # noqa: E402
     summarize_retention,
 )
 from fast_track.models import Creator  # noqa: E402
+from fast_track.storage.state_store import StateStore  # noqa: E402
 
 st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layout="wide")
 
 # Bumped when dashboard behavior changes -- visible in the sidebar so you
 # can confirm Streamlit Cloud picked up a new deploy after merging.
-_DASHBOARD_BUILD = "2026-08-19-cohort-filter"
+_DASHBOARD_BUILD = "2026-08-19-cohort-filter-v2"
 
 
 @st.cache_data(ttl=300)
@@ -258,37 +259,48 @@ def main() -> None:
     cohort_weeks = sorted(cohorts_by_week.keys())
     current_cohort_week = _cohort_week_start(date.today(), week_start_weekday)
 
-    with st.sidebar:
-        st.header("Filters")
-        if cohort_weeks:
-            default_cohorts = (
-                [current_cohort_week]
-                if current_cohort_week in cohort_weeks
-                else [cohort_weeks[-1]]
-            )
+    if cohort_weeks:
+        default_cohorts = (
+            [current_cohort_week]
+            if current_cohort_week in cohort_weeks
+            else [cohort_weeks[-1]]
+        )
 
-            def _format_cohort_week(week_start: date) -> str:
-                count = len(cohorts_by_week.get(week_start, []))
-                label = week_start.strftime("%b %d, %Y")
-                if week_start == current_cohort_week:
-                    label = f"This week ({label})"
-                return f"{label} — {count} creator(s)"
+        def _format_cohort_week(week_start: date) -> str:
+            count = len(cohorts_by_week.get(week_start, []))
+            label = week_start.strftime("%b %d, %Y")
+            if week_start == current_cohort_week:
+                label = f"This week ({label})"
+            return f"{label} — {count} creator(s)"
 
+        cohort_col, _spacer = st.columns([2, 3])
+        with cohort_col:
             selected_cohorts = st.multiselect(
                 "Cohort week (admitted)",
                 options=cohort_weeks,
                 default=default_cohorts,
                 format_func=_format_cohort_week,
+                help="Filter email status and gift retention to creators admitted in the selected week(s).",
+            )
+    else:
+        selected_cohorts = []
+        if github_configured:
+            st.info(
+                "No creators in the roster yet. Run the weekly cohort job (Tuesdays) "
+                "or click **Refresh data** in the sidebar after it completes."
             )
         else:
-            selected_cohorts = []
-            if github_configured:
-                st.caption(
-                    "No creators in the roster yet. Run the weekly cohort job "
-                    "(Tuesdays) or click **Refresh data** after it completes."
-                )
-            else:
-                st.caption("Configure GitHub sync (see warning above) to load the roster.")
+            st.info("Configure GitHub sync in Streamlit Secrets to load the creator roster.")
+
+    with st.sidebar:
+        st.header("Filters")
+        if cohort_weeks:
+            st.caption(
+                f"Viewing {sum(len(cohorts_by_week.get(w, [])) for w in selected_cohorts)} "
+                f"creator(s) across {len(selected_cohorts)} selected cohort week(s)."
+            )
+        else:
+            st.caption("No cohort weeks available yet.")
 
         window_days = st.slider(
             "Retention window (days pre/post gift)",
