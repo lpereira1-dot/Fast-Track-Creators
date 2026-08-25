@@ -81,6 +81,17 @@ def test_resolve_first_post_dates_omits_creators_with_zero_count(tmp_path):
         assert observed == {}
 
 
+def test_all_first_post_observations_returns_persisted_dates(tmp_path):
+    with StateStore(tmp_path / "state.db") as store:
+        store.resolve_first_post_dates({"c-1": 2, "c-2": 1}, today=date(2026, 7, 1))
+        store.resolve_first_post_dates({"c-2": 4}, today=date(2026, 7, 5))
+        observed = store.all_first_post_observations()
+        assert observed == {
+            "c-1": date(2026, 7, 1),
+            "c-2": date(2026, 7, 1),
+        }
+
+
 def test_record_email_sent_and_last_email_sent_at(tmp_path):
     with StateStore(tmp_path / "state.db") as store:
         assert store.last_email_sent_at("c-1", "welcome") is None
