@@ -233,6 +233,14 @@ class StateStore:
         self._conn.commit()
         return result
 
+    def all_first_post_observations(self) -> dict[str, date]:
+        """Every locally-observed first-post date, keyed by creator_id."""
+
+        rows = self._conn.execute(
+            "SELECT creator_id, observed_at FROM first_post_observations"
+        ).fetchall()
+        return {row["creator_id"]: date.fromisoformat(row["observed_at"]) for row in rows}
+
     # -- creator lifecycle emails -------------------------------------------
 
     def last_email_sent_at(self, creator_id: str, email_type: str) -> date | None:

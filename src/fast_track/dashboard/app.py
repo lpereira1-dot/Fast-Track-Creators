@@ -47,14 +47,14 @@ from fast_track.dashboard.metrics import (  # noqa: E402
     retention_curve,
     summarize_retention,
 )
-from fast_track.models import Creator  # noqa: E402
+from fast_track.models import Creator, GiftAward, Milestone  # noqa: E402
 from fast_track.storage.state_store import StateStore  # noqa: E402
 
 st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layout="wide")
 
 # Bumped when dashboard behavior changes -- visible in the sidebar so you
 # can confirm Streamlit Cloud picked up a new deploy after merging.
-_DASHBOARD_BUILD = "2026-08-19-v3"
+_DASHBOARD_BUILD = "2026-08-25-v4"
 
 
 @st.cache_data(ttl=300)
@@ -85,6 +85,7 @@ def sync_db_from_github(db_path: str) -> str | None:
         load_data.clear()
         load_email_log.clear()
         load_creators.clear()
+        load_activation_data.clear()
         return "✅ Synced with the latest GitHub Actions run."
     return "ℹ️ No GitHub Actions data artifact found yet -- showing local data only."
 
@@ -107,6 +108,36 @@ def load_data(db_path: str):
     finally:
         store.close()
     return awards, activity
+
+
+@st.cache_data(ttl=300)
+def load_activation_data(db_path: str):
+    store = StateStore(db_path)
+    try:
+        first_posts = store.all_first_post_observations()
+        awards = store.all_awards()
+        activity = store.get_activity()
+    finally:
+        store.close()
+
+    awards_by_creator: dict[str, list[GiftAward]] = {}
+    for award in awards:
+        awards_by_creator.setdefault(award.creator.creator_id, []).append(award)
+
+    first_sale_dates: dict[str, date] = {}
+    for creator_id, creator_awards in awards_by_creator.items():
+        sale_awards = [a for a in creator_awards if a.milestone is Milestone.FIRST_SALE]
+        if sale_awards:
+            first_sale_dates[creator_id] = min(a.completed_at.date() for a in sale_awards)
+
+    for record in activity:
+        if record.sales <= 0:
+            continue
+        existing = first_sale_dates.get(record.creator_id)
+        if existing is None or record.activity_date < existing:
+            first_sale_dates[record.creator_id] = record.activity_date
+
+    return first_posts, awards_by_creator, first_sale_dates
 
 
 @st.cache_data(ttl=300)
@@ -154,6 +185,78 @@ _EMAIL_TYPE_LABELS = {
     "sale_reminder": "Sale reminder",
     "sale_congrats": "Sale congrats",
 }
+
+
+def render_cohort_activation_status(
+    cohort_creators: list[Creator],
+    first_posts: dict[str, date],
+    awards_by_creator: dict[str, list[GiftAward]],
+    first_sale_dates: dict[str, date],
+    email_log: list,
+) -> None:
+    """Per-creator activation progress for the selected cohort week.
+
+    Sale-reminder emails fire when a first post is observed locally
+    (`first_post_observations`) -- that signal is separate from the
+    retention dashboard's daily post counts, which CreatorIQ does not
+    expose as a per-day history.
+    """
+
+    st.subheader("Cohort activation status")
+    if not cohort_creators:
+        st.caption("No creators in the selected cohort week.")
+        return
+
+    emails_by_creator: dict[str, list[str]] = {}
+    for entry in email_log:
+        label = _EMAIL_TYPE_LABELS.get(entry.email_type, entry.email_type)
+        emails_by_creator.setdefault(entry.creator_id, []).append(label)
+
+    rows = []
+    posted_count = 0
+    sale_count = 0
+    for creator in sorted(cohort_creators, key=lambda c: c.joined_at):
+        first_post = first_posts.get(creator.creator_id)
+        posted = first_post is not None
+        if posted:
+            posted_count += 1
+
+        first_sale = first_sale_dates.get(creator.creator_id)
+        if first_sale is not None:
+            sale_count += 1
+
+        creator_awards = awards_by_creator.get(creator.creator_id, [])
+        gift_labels = sorted({a.milestone.label for a in creator_awards})
+
+        rows.append(
+            {
+                "Creator": creator.name,
+                "Admitted": creator.joined_at.date(),
+                "Posted": "Yes" if posted else "No",
+                "First post observed": first_post or "—",
+                "First sale": "Yes" if first_sale else "No",
+                "First sale date": first_sale or "—",
+                "Gift milestones": ", ".join(gift_labels) if gift_labels else "—",
+                "Emails sent": ", ".join(sorted(set(emails_by_creator.get(creator.creator_id, [])))) or "—",
+            }
+        )
+
+    summary = st.columns(4)
+    summary[0].metric("Creators in cohort", len(cohort_creators))
+    summary[1].metric("Posted", posted_count)
+    summary[2].metric("First sale", sale_count)
+    summary[3].metric(
+        "Sale reminders",
+        sum(1 for e in email_log if e.email_type == "sale_reminder"),
+    )
+
+    st.caption(
+        "Posted / first-sale status comes from CreatorIQ roster observations stored "
+        "locally (`first_post_observations` and qualifying sales). The gift-retention "
+        "section below tracks sales activity only — daily post counts are not available "
+        "from CreatorIQ's API."
+    )
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
 def render_creator_email_status(email_log: list, cohort_creators: list[Creator]) -> None:
@@ -230,6 +333,9 @@ def main() -> None:
     creators = load_creators(settings.storage.db_path)
     awards, activity = load_data(settings.storage.db_path)
     email_log = load_email_log(settings.storage.db_path)
+    first_posts, awards_by_creator, first_sale_dates = load_activation_data(
+        settings.storage.db_path
+    )
 
     with st.sidebar:
         st.caption(f"Build {_DASHBOARD_BUILD}")
@@ -238,6 +344,7 @@ def main() -> None:
             load_creators.clear()
             load_data.clear()
             load_email_log.clear()
+            load_activation_data.clear()
             st.rerun()
 
     if not github_configured:
@@ -318,6 +425,14 @@ def main() -> None:
     cohort_creators = [
         creator for creator in creators if creator.creator_id in selected_creator_ids
     ]
+    cohort_email_log = [entry for entry in email_log if entry.creator_id in selected_creator_ids]
+    render_cohort_activation_status(
+        cohort_creators,
+        first_posts,
+        awards_by_creator,
+        first_sale_dates,
+        cohort_email_log,
+    )
     render_creator_email_status(email_log, cohort_creators)
 
     if not awards:
