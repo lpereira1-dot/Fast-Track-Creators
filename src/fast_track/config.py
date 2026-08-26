@@ -74,6 +74,13 @@ class ProgramRules:
     cohort_week_start_weekday: int = field(
         default_factory=lambda: _env_int("COHORT_WEEK_START_WEEKDAY", 1)
     )
+    # Creators who joined before this date are excluded from gift-card
+    # eligibility entirely -- mirrors CREATOR_EMAIL_MIN_JOIN_DATE for emails.
+    # Set to the program launch date so a rolling lookback window doesn't
+    # retroactively sheet creators who were in the program before go-live.
+    min_join_date: date | None = field(
+        default_factory=lambda: _env_date("PROGRAM_MIN_JOIN_DATE")
+    )
 
 
 @dataclass(frozen=True)
