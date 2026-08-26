@@ -54,6 +54,9 @@ jobs:
           GIFT_ORDER_SHEET_ID: ${{ secrets.GIFT_ORDER_SHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: service_account.json
           GOOGLE_SERVICE_ACCOUNT_JSON_CONTENTS: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          # Launch cutoff: only creators admitted on/after this date are
+          # eligible for gift-card rows. Matches the email program cutoff.
+          PROGRAM_MIN_JOIN_DATE: "2026-08-17"
         run: |
           echo "$GOOGLE_SERVICE_ACCOUNT_JSON_CONTENTS" > service_account.json
           ARGS=""

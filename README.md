@@ -356,7 +356,9 @@ Three GitHub Actions workflows are included:
 - [`weekly-gift-cohort.yml`](.github/workflows/weekly-gift-cohort.yml) —
   runs `fast-track run-weekly-job` every Tuesday at 2 PM ET, one day after
   the campaign week rolls over, so the newly-admitted cohort is fully
-  finished/settled in CreatorIQ before it's pulled.
+  finished/settled in CreatorIQ before it's pulled. Only creators admitted
+  on/after `PROGRAM_MIN_JOIN_DATE` (2026-08-17 in the workflow) are
+  eligible for gift-card rows — same launch cutoff as the email program.
 - [`daily-activity-sync.yml`](.github/workflows/daily-activity-sync.yml) —
   runs `fast-track sync-activity` daily to keep the dashboard current.
 - [`creator-emails.yml`](.github/workflows/creator-emails.yml) — runs

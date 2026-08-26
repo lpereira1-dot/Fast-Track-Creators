@@ -71,6 +71,15 @@ def lookback_days(settings: Settings) -> int:
     return settings.program.activation_window_days + 7
 
 
+def _creators_eligible_for_gifts(creators: list[Creator], settings: Settings) -> list[Creator]:
+    """Exclude creators who joined before the program launch cutoff."""
+
+    cutoff = settings.program.min_join_date
+    if cutoff is None:
+        return creators
+    return [c for c in creators if c.joined_at.date() >= cutoff]
+
+
 def _resolve_award_email(award: GiftAward, reports_client: ReportsClient) -> GiftAward:
     """Fill in a creator's email lazily, only for awards about to be sheeted.
 
@@ -102,10 +111,20 @@ def run_weekly_cohort_job(
     creators = reports_client.fetch_new_creators(since=window_start, until=today)
     store.upsert_creators(creators)
 
-    activation_records = reports_client.fetch_activation([c.creator_id for c in creators])
+    eligible_creators = _creators_eligible_for_gifts(creators, settings)
+    if settings.program.min_join_date is not None:
+        excluded = len(creators) - len(eligible_creators)
+        if excluded:
+            logger.info(
+                "Excluded %d creator(s) who joined before %s from gift-card eligibility",
+                excluded,
+                settings.program.min_join_date,
+            )
+
+    activation_records = reports_client.fetch_activation([c.creator_id for c in eligible_creators])
     activations_by_id = {r.creator_id: r for r in activation_records}
 
-    awards = evaluate_all_awards(creators, activations_by_id, settings.program)
+    awards = evaluate_all_awards(eligible_creators, activations_by_id, settings.program)
     new_awards = store.filter_unrecorded(awards)
     new_awards = [_resolve_award_email(a, reports_client) for a in new_awards]
     if new_awards:
@@ -135,7 +154,7 @@ def run_weekly_cohort_job(
         window_start=window_start,
         window_end=today,
         creators_checked=len(creators),
-        cohorts=group_into_weekly_cohorts(creators, settings.program),
+        cohorts=group_into_weekly_cohorts(eligible_creators, settings.program),
         qualifying_awards=awards,
         newly_added_awards=newly_added,
         dry_run=dry_run or sheet_client is None,

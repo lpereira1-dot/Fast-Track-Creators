@@ -1,7 +1,9 @@
 from datetime import date, datetime
 
 from fast_track.api.creatoriq import FixtureCreatorIQClient
-from fast_track.config import Settings
+from dataclasses import replace
+
+from fast_track.config import ProgramRules, Settings
 from fast_track.models import ActivationRecord, Creator, GiftAward
 from fast_track.storage.state_store import StateStore
 from fast_track.workflow.weekly_job import run_weekly_cohort_job
@@ -146,6 +148,35 @@ def test_weekly_job_self_heals_local_state_behind_the_sheet(tmp_path):
         # was newly appended to the sheet this run.
         recorded_ids = {a.creator.creator_id for a in store.all_awards()}
         assert recorded_ids == {"c-1009", "c-1012"}
+
+
+def test_weekly_job_excludes_creators_before_min_join_date(tmp_path):
+    settings = Settings(program=replace(ProgramRules(), min_join_date=date(2026, 8, 17)))
+    pre_launch = Creator.from_api(
+        {
+            "creator_id": "c-old",
+            "name": "Pre Launch",
+            "email": "old@example.com",
+            "joined_at": "2026-08-10T00:00:00Z",
+        }
+    )
+    activation = ActivationRecord.from_api(
+        {
+            "creator_id": "c-old",
+            "first_post_at": "2026-08-11T00:00:00Z",
+            "first_sale_at": None,
+        }
+    )
+    client = SingleCreatorReportsClient(pre_launch, activation)
+    sheet = FakeSheetClient()
+
+    with StateStore(tmp_path / "state.db") as store:
+        result = run_weekly_cohort_job(
+            client, store, settings, sheet_client=sheet, today=date(2026, 8, 25)
+        )
+        assert result.newly_added_awards == []
+        assert sheet.rows == []
+        assert store.all_awards() == []
 
 
 def test_weekly_job_dry_run_does_not_touch_sheet_or_state(tmp_path):
