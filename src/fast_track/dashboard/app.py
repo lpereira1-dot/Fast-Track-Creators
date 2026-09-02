@@ -44,6 +44,9 @@ from fast_track.dashboard.db_sync import sync_db_from_github_artifact  # noqa: E
 from fast_track.dashboard.metrics import (  # noqa: E402
     build_daily_offsets,
     build_gift_events,
+    coerce_date,
+    direct_pre_gift_metrics,
+    first_post_date_by_creator,
     merge_activity_records,
     milestone_activity_records,
     retention_curve,
@@ -56,7 +59,7 @@ st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layou
 
 # Bumped when dashboard behavior changes -- visible in the sidebar so you
 # can confirm Streamlit Cloud picked up a new deploy after merging.
-_DASHBOARD_BUILD = "2026-09-02-v7"
+_DASHBOARD_BUILD = "2026-09-02-v8"
 
 
 @st.cache_data(ttl=300)
@@ -500,16 +503,20 @@ def main() -> None:
         )
         return
 
+    cohort_awards = [a for a in awards if a.creator.creator_id in selected_creator_ids]
+    cohort_first_posts = {
+        cid: day for cid, day in first_posts.items() if cid in selected_creator_ids
+    }
+
     retention_activity = merge_activity_records(
         list(activity)
-        + milestone_activity_records(
-            [a for a in awards if a.creator.creator_id in selected_creator_ids],
-            {cid: day for cid, day in first_posts.items() if cid in selected_creator_ids},
-        )
+        + milestone_activity_records(cohort_awards, cohort_first_posts)
     )
     daily_offsets = build_daily_offsets(filtered_events, retention_activity, window_days)
     summary = summarize_retention(daily_offsets, window_days)
+    summary.update(direct_pre_gift_metrics(filtered_events, cohort_awards, cohort_first_posts))
     curve = retention_curve(daily_offsets)
+    first_post_map = first_post_date_by_creator(cohort_awards, cohort_first_posts)
 
     st.subheader("Gift retention (pre/post gift card)")
     st.caption(
@@ -525,7 +532,12 @@ def main() -> None:
     cols[1].metric(
         "Posted before gift",
         fmt_pct(summary["pre_posting_rate"]),
-        help="Share of gifted creators with at least one post before the gift order date.",
+        delta=(
+            None
+            if summary["n_creators"] == 0
+            else f"{summary['pre_gift_posters']} of {summary['n_creators']} creators"
+        ),
+        help="Creators whose first post was before the gift order date (day after sheet sync).",
     )
     cols[2].metric(
         "Active post-gift (daily avg)",
@@ -551,7 +563,11 @@ def main() -> None:
     )
 
     rate_cols = st.columns(4)
-    rate_cols[0].metric("Avg posts/week (pre)", fmt_num(summary["avg_pre_posts_per_week"]))
+    rate_cols[0].metric(
+        "Pre-gift posts per creator",
+        fmt_num(summary["avg_pre_posts_per_creator"]),
+        help="Average qualifying first posts per gifted creator before the gift order date.",
+    )
     rate_cols[1].metric("Avg posts/week (post)", fmt_num(summary["avg_post_posts_per_week"]))
     rate_cols[2].metric("Avg sales/week (pre)", fmt_num(summary["avg_pre_sales_per_week"]))
     rate_cols[3].metric("Avg sales/week (post)", fmt_num(summary["avg_post_sales_per_week"]))
@@ -599,7 +615,6 @@ def main() -> None:
                 {
                     "pre_active_days": int(df[df["period"] == "pre"]["active"].sum()),
                     "post_active_days": int(df[df["period"] == "post"]["active"].sum()),
-                    "pre_posts": int(df[df["period"] == "pre"]["posts"].sum()),
                     "post_posts": int(df[df["period"] == "post"]["posts"].sum()),
                     "pre_sales": int(df[df["period"] == "pre"]["sales"].sum()),
                     "post_sales": int(df[df["period"] == "post"]["sales"].sum()),
@@ -612,8 +627,15 @@ def main() -> None:
             filtered_events[["creator_id", "email", "gift_date", "milestones", "total_gift_usd"]],
             on="creator_id",
         )
-        .sort_values("gift_date")
     )
+    per_creator["pre_posts"] = per_creator.apply(
+        lambda row: int(
+            (fp := first_post_map.get(row["creator_id"])) is not None
+            and fp < coerce_date(row["gift_date"])
+        ),
+        axis=1,
+    )
+    per_creator = per_creator.sort_values("gift_date")
     st.dataframe(per_creator, use_container_width=True, hide_index=True)
 
 

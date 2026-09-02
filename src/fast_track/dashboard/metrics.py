@@ -13,11 +13,74 @@ on top of these functions.
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 
 from fast_track.models import ActivityRecord, GiftAward, Milestone
+
+
+def coerce_date(value: date | pd.Timestamp | str) -> date:
+    """Normalize pandas/date values for reliable dict lookups."""
+
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    return pd.Timestamp(value).date()
+
+
+def first_post_date_by_creator(
+    awards: list[GiftAward],
+    first_post_by_creator: dict[str, date] | None = None,
+) -> dict[str, date]:
+    """Best available first-post date per creator (milestone date preferred)."""
+
+    dates = dict(first_post_by_creator or {})
+    for award in awards:
+        if award.milestone is not Milestone.FIRST_POST:
+            continue
+        creator_id = award.creator.creator_id
+        day = award.completed_at.date()
+        existing = dates.get(creator_id)
+        if existing is None or day < existing:
+            dates[creator_id] = day
+    return dates
+
+
+def direct_pre_gift_metrics(
+    gift_events: pd.DataFrame,
+    awards: list[GiftAward],
+    first_post_by_creator: dict[str, date] | None = None,
+) -> dict[str, float | int | None]:
+    """Pre-gift posting stats that do not depend on the sliding retention window.
+
+    A creator counts as having posted pre-gift when their first-post date is
+    strictly before the gift-order anchor day (day after the sheet sync).
+    """
+
+    if gift_events.empty:
+        return {
+            "pre_posting_rate": None,
+            "pre_gift_posters": 0,
+            "avg_pre_posts_per_creator": None,
+        }
+
+    first_posts = first_post_date_by_creator(awards, first_post_by_creator)
+    posters = 0
+    for _, row in gift_events.iterrows():
+        creator_id = row["creator_id"]
+        anchor = coerce_date(row["gift_date"])
+        first_post = first_posts.get(creator_id)
+        if first_post is not None and first_post < anchor:
+            posters += 1
+
+    n_creators = gift_events["creator_id"].nunique()
+    return {
+        "pre_posting_rate": (posters / n_creators) * 100 if n_creators else None,
+        "pre_gift_posters": posters,
+        "avg_pre_posts_per_creator": posters / n_creators if n_creators else None,
+    }
 
 
 def _gift_anchor_date(award: GiftAward) -> date:
@@ -169,7 +232,7 @@ def build_daily_offsets(
     rows = []
     for _, event in gift_events.iterrows():
         creator_id = event["creator_id"]
-        gift_date = event["gift_date"]
+        gift_date = coerce_date(event["gift_date"])
         acts = activity_by_creator.get(creator_id, {})
         for offset in range(-window_days, window_days + 1):
             day = gift_date + timedelta(days=offset)
@@ -232,6 +295,8 @@ def summarize_retention(daily_offsets: pd.DataFrame, window_days: int) -> dict:
             "pre_active_rate": None,
             "post_active_rate": None,
             "pre_posting_rate": None,
+            "pre_gift_posters": 0,
+            "avg_pre_posts_per_creator": None,
             "post_posting_rate": None,
             "lift_pct": None,
             "final_week_retention_rate": None,
@@ -248,6 +313,10 @@ def summarize_retention(daily_offsets: pd.DataFrame, window_days: int) -> dict:
     post_active_rate = post["active"].mean() * 100 if not post.empty else None
     pre_posting_rate = (
         pre.groupby("creator_id")["posts"].sum().gt(0).mean() * 100 if not pre.empty else None
+    )
+    pre_gift_posters = int(pre.groupby("creator_id")["posts"].sum().gt(0).sum()) if not pre.empty else 0
+    avg_pre_posts_per_creator = (
+        pre.groupby("creator_id")["posts"].sum().mean() if not pre.empty else None
     )
     post_posting_rate = (
         post.groupby("creator_id")["posts"].sum().gt(0).mean() * 100 if not post.empty else None
@@ -278,6 +347,8 @@ def summarize_retention(daily_offsets: pd.DataFrame, window_days: int) -> dict:
         "pre_active_rate": pre_active_rate,
         "post_active_rate": post_active_rate,
         "pre_posting_rate": pre_posting_rate,
+        "pre_gift_posters": pre_gift_posters,
+        "avg_pre_posts_per_creator": avg_pre_posts_per_creator,
         "post_posting_rate": post_posting_rate,
         "lift_pct": lift_pct,
         "final_week_retention_rate": final_week_retention_rate,
