@@ -2,8 +2,8 @@
 
 For every creator who earned at least one gift card, we look at their daily
 activity for `window_days` (default 30) before and after their "gift date"
-(the date of their first qualifying milestone) and compare activity levels
-and retention.
+(the date their first gift row was added to the ordering sheet) and compare
+activity levels and retention.
 
 Kept as plain pandas transformations (no Streamlit imports) so the math is
 independently unit-testable -- `dashboard/app.py` is a thin rendering layer
@@ -20,8 +20,20 @@ import pandas as pd
 from fast_track.models import ActivityRecord, GiftAward, Milestone
 
 
+def _gift_anchor_date(award: GiftAward) -> date:
+    """First day of the post-gift window for this award.
+
+  Uses the day *after* the gift row was added to the ordering sheet so a
+  creator's qualifying first post (often the same calendar day as the sheet
+  sync) lands in the pre-gift period.
+    """
+
+    sheet_day = award.added_at.date() if award.added_at is not None else award.completed_at.date()
+    return sheet_day + timedelta(days=1)
+
+
 def build_gift_events(awards: list[GiftAward]) -> pd.DataFrame:
-    """One row per creator: their earliest qualifying milestone date + which gifts they earned."""
+    """One row per creator: earliest gift-sheet date + which gifts they earned."""
 
     grouped: dict[str, list[GiftAward]] = defaultdict(list)
     for award in awards:
@@ -30,7 +42,7 @@ def build_gift_events(awards: list[GiftAward]) -> pd.DataFrame:
     rows = []
     for creator_id, creator_awards in grouped.items():
         creator = creator_awards[0].creator
-        gift_date = min(a.completed_at.date() for a in creator_awards)
+        gift_date = min(_gift_anchor_date(a) for a in creator_awards)
         rows.append(
             {
                 "creator_id": creator_id,
@@ -219,6 +231,8 @@ def summarize_retention(daily_offsets: pd.DataFrame, window_days: int) -> dict:
             "n_creators": 0,
             "pre_active_rate": None,
             "post_active_rate": None,
+            "pre_posting_rate": None,
+            "post_posting_rate": None,
             "lift_pct": None,
             "final_week_retention_rate": None,
             "avg_pre_posts_per_week": None,
@@ -232,6 +246,12 @@ def summarize_retention(daily_offsets: pd.DataFrame, window_days: int) -> dict:
 
     pre_active_rate = pre["active"].mean() * 100 if not pre.empty else None
     post_active_rate = post["active"].mean() * 100 if not post.empty else None
+    pre_posting_rate = (
+        pre.groupby("creator_id")["posts"].sum().gt(0).mean() * 100 if not pre.empty else None
+    )
+    post_posting_rate = (
+        post.groupby("creator_id")["posts"].sum().gt(0).mean() * 100 if not post.empty else None
+    )
     lift_pct = (
         ((post_active_rate - pre_active_rate) / pre_active_rate) * 100
         if pre_active_rate not in (None, 0) and post_active_rate is not None
@@ -257,6 +277,8 @@ def summarize_retention(daily_offsets: pd.DataFrame, window_days: int) -> dict:
         "n_creators": daily_offsets["creator_id"].nunique(),
         "pre_active_rate": pre_active_rate,
         "post_active_rate": post_active_rate,
+        "pre_posting_rate": pre_posting_rate,
+        "post_posting_rate": post_posting_rate,
         "lift_pct": lift_pct,
         "final_week_retention_rate": final_week_retention_rate,
         "avg_pre_posts_per_week": per_week(pre, "posts"),

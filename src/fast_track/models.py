@@ -119,6 +119,10 @@ class GiftAward:
     amount_usd: float
     completed_at: datetime
     cohort_week_start: date
+    # When the award was written to the gift-order sheet (weekly job).
+    # Retention pre/post windows anchor on this date, not `completed_at`,
+    # because creators typically post days before the card is ordered.
+    added_at: datetime | None = None
 
 
 @dataclass(frozen=True)
