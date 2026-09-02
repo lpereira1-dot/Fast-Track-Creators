@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from fast_track.dashboard.metrics import (
     build_daily_offsets,
     build_gift_events,
+    direct_pre_gift_metrics,
     merge_activity_records,
     milestone_activity_records,
     retention_curve,
@@ -166,6 +167,52 @@ def test_milestone_activity_records_marks_first_post_and_sale_days():
     sale_day = next(r for r in records if r.sales)
     assert post_day.activity_date == date(2026, 6, 3)
     assert sale_day.activity_date == date(2026, 6, 10)
+
+
+def test_direct_pre_gift_metrics_counts_first_post_before_anchor():
+    awards = [
+        make_award(
+            "c-1",
+            Milestone.FIRST_POST,
+            "2026-06-03T00:00:00Z",
+            "2026-06-01T00:00:00Z",
+            added_at="2026-06-03T00:00:00Z",
+        ),
+        make_award(
+            "c-2",
+            Milestone.FIRST_POST,
+            "2026-06-10T00:00:00Z",
+            "2026-06-01T00:00:00Z",
+            added_at="2026-06-10T00:00:00Z",
+        ),
+    ]
+    events = build_gift_events(awards)
+    metrics = direct_pre_gift_metrics(events, awards)
+
+    assert metrics["pre_gift_posters"] == 2
+    assert metrics["pre_posting_rate"] == 100.0
+    assert metrics["avg_pre_posts_per_creator"] == 1.0
+
+
+def test_direct_pre_gift_metrics_ignore_posts_outside_sliding_window():
+    awards = [
+        make_award(
+            "c-1",
+            Milestone.FIRST_POST,
+            "2026-06-01T00:00:00Z",
+            "2026-05-01T00:00:00Z",
+            added_at="2026-06-15T00:00:00Z",
+        ),
+    ]
+    events = build_gift_events(awards)
+    retention_activity = merge_activity_records(milestone_activity_records(awards))
+    daily = build_daily_offsets(events, retention_activity, window_days=7, as_of=date(2026, 6, 20))
+    window_summary = summarize_retention(daily, window_days=7)
+    direct = direct_pre_gift_metrics(events, awards)
+
+    assert window_summary["pre_posting_rate"] == 0.0
+    assert direct["pre_posting_rate"] == 100.0
+    assert direct["avg_pre_posts_per_creator"] == 1.0
 
 
 def test_same_day_sheet_add_counts_first_post_as_pre():
