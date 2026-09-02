@@ -3,6 +3,8 @@ from datetime import date, datetime
 from fast_track.dashboard.metrics import (
     build_daily_offsets,
     build_gift_events,
+    merge_activity_records,
+    milestone_activity_records,
     retention_curve,
     summarize_retention,
 )
@@ -103,3 +105,32 @@ def test_empty_awards_produce_empty_summary():
     summary = summarize_retention(daily, window_days=30)
     assert summary["n_creators"] == 0
     assert summary["pre_active_rate"] is None
+
+
+def test_milestone_activity_records_marks_first_post_and_sale_days():
+    awards = [
+        make_award("c-1", Milestone.FIRST_POST, "2026-06-03T00:00:00Z", "2026-06-01T00:00:00Z"),
+        make_award("c-1", Milestone.FIRST_SALE, "2026-06-10T00:00:00Z", "2026-06-01T00:00:00Z"),
+    ]
+    records = milestone_activity_records(awards)
+    assert len(records) == 2
+    post_day = next(r for r in records if r.posts)
+    sale_day = next(r for r in records if r.sales)
+    assert post_day.activity_date == date(2026, 6, 3)
+    assert sale_day.activity_date == date(2026, 6, 10)
+
+
+def test_retention_uses_milestone_activity_when_transaction_sync_is_empty():
+    awards = [
+        make_award("c-1", Milestone.FIRST_POST, "2026-06-03T00:00:00Z", "2026-06-01T00:00:00Z"),
+        make_award("c-1", Milestone.FIRST_SALE, "2026-06-08T00:00:00Z", "2026-06-01T00:00:00Z"),
+    ]
+    events = build_gift_events(awards)
+    retention_activity = merge_activity_records(milestone_activity_records(awards))
+    daily = build_daily_offsets(events, retention_activity, window_days=5, as_of=date(2026, 6, 10))
+    summary = summarize_retention(daily, window_days=5)
+
+    assert summary["post_active_rate"] > 0
+    sale_day = daily[daily["date"] == date(2026, 6, 8)].iloc[0]
+    assert sale_day["sales"] == 1
+    assert sale_day["active"]
