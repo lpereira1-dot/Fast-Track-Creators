@@ -38,6 +38,7 @@ jobs:
         env:
           CREATORIQ_BASE_URL: ${{ secrets.CREATORIQ_BASE_URL }}
           CREATORIQ_API_KEY: ${{ secrets.CREATORIQ_API_KEY }}
+          CREATORIQ_CAMPAIGN_ID: ${{ secrets.CREATORIQ_CAMPAIGN_ID }}
         run: fast-track sync-activity
 
       - name: Upload state database artifact

@@ -17,7 +17,7 @@ from datetime import date, timedelta
 
 import pandas as pd
 
-from fast_track.models import ActivityRecord, GiftAward
+from fast_track.models import ActivityRecord, GiftAward, Milestone
 
 
 def build_gift_events(awards: list[GiftAward]) -> pd.DataFrame:
@@ -55,6 +55,83 @@ def build_gift_events(awards: list[GiftAward]) -> pd.DataFrame:
             ]
         )
     return pd.DataFrame(rows).sort_values("gift_date").reset_index(drop=True)
+
+
+def merge_activity_records(records: list[ActivityRecord]) -> list[ActivityRecord]:
+    """Combine activity rows for the same creator/day, summing posts/sales/gmv."""
+
+    merged: dict[tuple[str, date], ActivityRecord] = {}
+    for record in records:
+        key = (record.creator_id, record.activity_date)
+        existing = merged.get(key)
+        if existing is None:
+            merged[key] = record
+            continue
+        merged[key] = ActivityRecord(
+            creator_id=record.creator_id,
+            activity_date=record.activity_date,
+            posts=existing.posts + record.posts,
+            sales=existing.sales + record.sales,
+            gmv_usd=existing.gmv_usd + record.gmv_usd,
+        )
+    return list(merged.values())
+
+
+def milestone_activity_records(
+    awards: list[GiftAward],
+    first_post_by_creator: dict[str, date] | None = None,
+) -> list[ActivityRecord]:
+    """One-day markers from gift milestones and locally-observed first posts.
+
+    CreatorIQ does not expose per-day post history, so the retention
+    dashboard treats the first-post observation date (and first-post gift
+    milestone date) as a single posting day. First-sale milestones provide
+    a sales fallback when transaction sync is empty.
+    """
+
+    first_post_by_creator = first_post_by_creator or {}
+    records: list[ActivityRecord] = []
+    awarded_first_post: set[str] = set()
+
+    for award in awards:
+        creator_id = award.creator.creator_id
+        day = award.completed_at.date()
+        if award.milestone is Milestone.FIRST_POST:
+            awarded_first_post.add(creator_id)
+            records.append(
+                ActivityRecord(
+                    creator_id=creator_id,
+                    activity_date=day,
+                    posts=1,
+                    sales=0,
+                    gmv_usd=0.0,
+                )
+            )
+        elif award.milestone is Milestone.FIRST_SALE:
+            records.append(
+                ActivityRecord(
+                    creator_id=creator_id,
+                    activity_date=day,
+                    posts=0,
+                    sales=1,
+                    gmv_usd=0.0,
+                )
+            )
+
+    for creator_id, day in first_post_by_creator.items():
+        if creator_id in awarded_first_post:
+            continue
+        records.append(
+            ActivityRecord(
+                creator_id=creator_id,
+                activity_date=day,
+                posts=1,
+                sales=0,
+                gmv_usd=0.0,
+            )
+        )
+
+    return records
 
 
 def build_daily_offsets(

@@ -44,6 +44,8 @@ from fast_track.dashboard.db_sync import sync_db_from_github_artifact  # noqa: E
 from fast_track.dashboard.metrics import (  # noqa: E402
     build_daily_offsets,
     build_gift_events,
+    merge_activity_records,
+    milestone_activity_records,
     retention_curve,
     summarize_retention,
 )
@@ -54,7 +56,7 @@ st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layou
 
 # Bumped when dashboard behavior changes -- visible in the sidebar so you
 # can confirm Streamlit Cloud picked up a new deploy after merging.
-_DASHBOARD_BUILD = "2026-08-25-v4"
+_DASHBOARD_BUILD = "2026-09-02-v5"
 
 
 @st.cache_data(ttl=300)
@@ -475,11 +477,26 @@ def main() -> None:
         )
         return
 
-    daily_offsets = build_daily_offsets(filtered_events, activity, window_days)
+    retention_activity = merge_activity_records(
+        list(activity)
+        + milestone_activity_records(
+            [a for a in awards if a.creator.creator_id in selected_creator_ids],
+            {cid: day for cid, day in first_posts.items() if cid in selected_creator_ids},
+        )
+    )
+    daily_offsets = build_daily_offsets(filtered_events, retention_activity, window_days)
     summary = summarize_retention(daily_offsets, window_days)
     curve = retention_curve(daily_offsets)
 
-    st.subheader("Summary")
+    st.subheader("Gift retention (pre/post milestone)")
+    st.caption(
+        "Sales/GMV come from CreatorIQ transaction history (daily activity sync). "
+        "Posts are shown on the locally-observed first-post date only — CreatorIQ "
+        "does not expose daily post counts, so ongoing post activity after the "
+        "first post is not tracked here."
+    )
+
+    st.markdown("**Summary**")
     cols = st.columns(6)
     cols[0].metric("Gifted creators", summary["n_creators"])
     cols[1].metric("Pre-gift active rate", fmt_pct(summary["pre_active_rate"]))
