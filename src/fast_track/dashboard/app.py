@@ -59,7 +59,7 @@ st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layou
 
 # Bumped when dashboard behavior changes -- visible in the sidebar so you
 # can confirm Streamlit Cloud picked up a new deploy after merging.
-_DASHBOARD_BUILD = "2026-09-02-v8"
+_DASHBOARD_BUILD = "2026-09-02-v9"
 
 
 @st.cache_data(ttl=300)
@@ -204,6 +204,9 @@ def _default_cohort_weeks(
     if gifted_weeks:
         return [gifted_weeks[-1]]
     return [cohort_weeks[-1]]
+
+
+def fmt_pct(value: float | None) -> str:
     return "-" if value is None else f"{value:.1f}%"
 
 
