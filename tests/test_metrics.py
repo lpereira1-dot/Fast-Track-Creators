@@ -61,7 +61,7 @@ def test_build_gift_events_uses_earliest_sheet_date_as_gift_date():
     events = build_gift_events(awards)
     assert len(events) == 1
     row = events.iloc[0]
-    assert row["gift_date"] == date(2026, 6, 5)
+    assert row["gift_date"] == date(2026, 6, 6)
     assert row["total_gift_usd"] == 50.0
     assert set(row["milestones"].split(", ")) == {"First Post", "First Sale"}
 
@@ -78,13 +78,13 @@ def test_build_daily_offsets_marks_active_days_and_drops_future_days():
     ]
     events = build_gift_events(awards)
     activity = [
-        ActivityRecord(creator_id="c-1", activity_date=date(2026, 6, 2), posts=1),  # offset -1
-        ActivityRecord(creator_id="c-1", activity_date=date(2026, 6, 4), sales=1),  # offset +1
+        ActivityRecord(creator_id="c-1", activity_date=date(2026, 6, 2), posts=1),  # offset -2
+        ActivityRecord(creator_id="c-1", activity_date=date(2026, 6, 5), sales=1),  # offset +1
     ]
     daily = build_daily_offsets(events, activity, window_days=5, as_of=date(2026, 6, 6))
 
     assert daily["offset"].min() == -5
-    assert daily["offset"].max() == 3  # 2026-06-06 is offset +3 from 2026-06-03; later days dropped
+    assert daily["offset"].max() == 2  # 2026-06-06 is offset +2 from 2026-06-04
 
     pre_day = daily[daily["date"] == date(2026, 6, 2)].iloc[0]
     assert pre_day["active"]
@@ -111,8 +111,8 @@ def test_retention_curve_aggregates_across_creators():
     ]
     events = build_gift_events(awards)
     activity = [
-        ActivityRecord(creator_id="c-1", activity_date=date(2026, 6, 4), posts=1),  # c-1 offset +1
-        ActivityRecord(creator_id="c-2", activity_date=date(2026, 6, 6), posts=1),  # c-2 offset +1
+        ActivityRecord(creator_id="c-1", activity_date=date(2026, 6, 5), posts=1),  # c-1 offset +1
+        ActivityRecord(creator_id="c-2", activity_date=date(2026, 6, 7), posts=1),  # c-2 offset +1
     ]
     daily = build_daily_offsets(events, activity, window_days=3, as_of=date(2026, 6, 10))
     curve = retention_curve(daily)
@@ -166,6 +166,26 @@ def test_milestone_activity_records_marks_first_post_and_sale_days():
     sale_day = next(r for r in records if r.sales)
     assert post_day.activity_date == date(2026, 6, 3)
     assert sale_day.activity_date == date(2026, 6, 10)
+
+
+def test_same_day_sheet_add_counts_first_post_as_pre():
+    awards = [
+        make_award(
+            "c-1",
+            Milestone.FIRST_POST,
+            "2026-06-03T00:00:00Z",
+            "2026-06-01T00:00:00Z",
+            added_at="2026-06-03T00:00:00Z",
+        ),
+    ]
+    events = build_gift_events(awards)
+    assert events.iloc[0]["gift_date"] == date(2026, 6, 4)
+    retention_activity = merge_activity_records(milestone_activity_records(awards))
+    daily = build_daily_offsets(events, retention_activity, window_days=5, as_of=date(2026, 6, 10))
+    summary = summarize_retention(daily, window_days=5)
+
+    assert daily[daily["period"] == "pre"]["posts"].sum() == 1
+    assert summary["pre_posting_rate"] == 100.0
 
 
 def test_first_post_counts_in_pre_period_when_gift_sheeted_later():

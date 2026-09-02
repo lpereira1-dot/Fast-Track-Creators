@@ -56,7 +56,7 @@ st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layou
 
 # Bumped when dashboard behavior changes -- visible in the sidebar so you
 # can confirm Streamlit Cloud picked up a new deploy after merging.
-_DASHBOARD_BUILD = "2026-09-02-v6"
+_DASHBOARD_BUILD = "2026-09-02-v7"
 
 
 @st.cache_data(ttl=300)
@@ -173,7 +173,34 @@ def _build_cohort_index(
     return by_creator, by_week
 
 
-def fmt_pct(value: float | None) -> str:
+def _default_cohort_weeks(
+    cohort_weeks: list[date],
+    awards: list,
+    week_start_weekday: int,
+) -> list[date]:
+    """Pick a sensible default cohort filter for the retention section.
+
+    The current roster week often has no gift awards yet (weekly job runs on
+    Tuesdays), so default to the most recent cohort week that already has at
+    least one gifted creator.
+    """
+
+    if not cohort_weeks:
+        return []
+
+    gifted_weeks = sorted(
+        {
+            award.creator.cohort_week_start(week_start_weekday)
+            for award in awards
+        }
+        & set(cohort_weeks)
+    )
+    current_week = _cohort_week_start(date.today(), week_start_weekday)
+    if current_week in gifted_weeks:
+        return [current_week]
+    if gifted_weeks:
+        return [gifted_weeks[-1]]
+    return [cohort_weeks[-1]]
     return "-" if value is None else f"{value:.1f}%"
 
 
@@ -369,11 +396,7 @@ def main() -> None:
     current_cohort_week = _cohort_week_start(date.today(), week_start_weekday)
 
     if cohort_weeks:
-        default_cohorts = (
-            [current_cohort_week]
-            if current_cohort_week in cohort_weeks
-            else [cohort_weeks[-1]]
-        )
+        default_cohorts = _default_cohort_weeks(cohort_weeks, awards, week_start_weekday)
 
         def _format_cohort_week(week_start: date) -> str:
             count = len(cohorts_by_week.get(week_start, []))
@@ -490,19 +513,25 @@ def main() -> None:
 
     st.subheader("Gift retention (pre/post gift card)")
     st.caption(
-        "Pre/post windows are centered on the date the gift row was added to the "
-        "ordering sheet (typically the weekly Tuesday sync), not the milestone date. "
-        "A creator's first post (within 14 days of joining) therefore counts in the "
-        "pre-gift period. Sales/GMV come from CreatorIQ transaction history; posts "
-        "are shown on the first-post date only because CreatorIQ does not expose "
-        "daily post counts."
+        "Pre-gift = before the gift order was queued on the sheet (day after the "
+        "weekly sync). A creator's qualifying first post counts in pre-gift even when "
+        "it happened the same day as the sheet sync. Sales/GMV come from CreatorIQ "
+        "transaction history; posts are shown on the first-post date only."
     )
 
     st.markdown("**Summary**")
     cols = st.columns(6)
     cols[0].metric("Gifted creators", summary["n_creators"])
-    cols[1].metric("Pre-gift active rate", fmt_pct(summary["pre_active_rate"]))
-    cols[2].metric("Post-gift active rate", fmt_pct(summary["post_active_rate"]))
+    cols[1].metric(
+        "Posted before gift",
+        fmt_pct(summary["pre_posting_rate"]),
+        help="Share of gifted creators with at least one post before the gift order date.",
+    )
+    cols[2].metric(
+        "Active post-gift (daily avg)",
+        fmt_pct(summary["post_active_rate"]),
+        help="Average share of post-gift days with any post or sale activity.",
+    )
     cols[3].metric(
         "Activity lift",
         fmt_pct(summary["lift_pct"]),

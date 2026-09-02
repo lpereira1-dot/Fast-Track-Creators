@@ -21,11 +21,15 @@ from fast_track.models import ActivityRecord, GiftAward, Milestone
 
 
 def _gift_anchor_date(award: GiftAward) -> date:
-    """Day the retention window is centered on for this award."""
+    """First day of the post-gift window for this award.
 
-    if award.added_at is not None:
-        return award.added_at.date()
-    return award.completed_at.date()
+  Uses the day *after* the gift row was added to the ordering sheet so a
+  creator's qualifying first post (often the same calendar day as the sheet
+  sync) lands in the pre-gift period.
+    """
+
+    sheet_day = award.added_at.date() if award.added_at is not None else award.completed_at.date()
+    return sheet_day + timedelta(days=1)
 
 
 def build_gift_events(awards: list[GiftAward]) -> pd.DataFrame:
@@ -227,6 +231,8 @@ def summarize_retention(daily_offsets: pd.DataFrame, window_days: int) -> dict:
             "n_creators": 0,
             "pre_active_rate": None,
             "post_active_rate": None,
+            "pre_posting_rate": None,
+            "post_posting_rate": None,
             "lift_pct": None,
             "final_week_retention_rate": None,
             "avg_pre_posts_per_week": None,
@@ -240,6 +246,12 @@ def summarize_retention(daily_offsets: pd.DataFrame, window_days: int) -> dict:
 
     pre_active_rate = pre["active"].mean() * 100 if not pre.empty else None
     post_active_rate = post["active"].mean() * 100 if not post.empty else None
+    pre_posting_rate = (
+        pre.groupby("creator_id")["posts"].sum().gt(0).mean() * 100 if not pre.empty else None
+    )
+    post_posting_rate = (
+        post.groupby("creator_id")["posts"].sum().gt(0).mean() * 100 if not post.empty else None
+    )
     lift_pct = (
         ((post_active_rate - pre_active_rate) / pre_active_rate) * 100
         if pre_active_rate not in (None, 0) and post_active_rate is not None
@@ -265,6 +277,8 @@ def summarize_retention(daily_offsets: pd.DataFrame, window_days: int) -> dict:
         "n_creators": daily_offsets["creator_id"].nunique(),
         "pre_active_rate": pre_active_rate,
         "post_active_rate": post_active_rate,
+        "pre_posting_rate": pre_posting_rate,
+        "post_posting_rate": post_posting_rate,
         "lift_pct": lift_pct,
         "final_week_retention_rate": final_week_retention_rate,
         "avg_pre_posts_per_week": per_week(pre, "posts"),
