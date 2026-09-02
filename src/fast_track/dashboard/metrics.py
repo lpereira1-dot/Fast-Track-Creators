@@ -2,8 +2,8 @@
 
 For every creator who earned at least one gift card, we look at their daily
 activity for `window_days` (default 30) before and after their "gift date"
-(the date of their first qualifying milestone) and compare activity levels
-and retention.
+(the date their first gift row was added to the ordering sheet) and compare
+activity levels and retention.
 
 Kept as plain pandas transformations (no Streamlit imports) so the math is
 independently unit-testable -- `dashboard/app.py` is a thin rendering layer
@@ -20,8 +20,16 @@ import pandas as pd
 from fast_track.models import ActivityRecord, GiftAward, Milestone
 
 
+def _gift_anchor_date(award: GiftAward) -> date:
+    """Day the retention window is centered on for this award."""
+
+    if award.added_at is not None:
+        return award.added_at.date()
+    return award.completed_at.date()
+
+
 def build_gift_events(awards: list[GiftAward]) -> pd.DataFrame:
-    """One row per creator: their earliest qualifying milestone date + which gifts they earned."""
+    """One row per creator: earliest gift-sheet date + which gifts they earned."""
 
     grouped: dict[str, list[GiftAward]] = defaultdict(list)
     for award in awards:
@@ -30,7 +38,7 @@ def build_gift_events(awards: list[GiftAward]) -> pd.DataFrame:
     rows = []
     for creator_id, creator_awards in grouped.items():
         creator = creator_awards[0].creator
-        gift_date = min(a.completed_at.date() for a in creator_awards)
+        gift_date = min(_gift_anchor_date(a) for a in creator_awards)
         rows.append(
             {
                 "creator_id": creator_id,

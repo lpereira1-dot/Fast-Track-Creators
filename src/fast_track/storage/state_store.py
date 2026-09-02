@@ -194,6 +194,7 @@ class StateStore:
                     amount_usd=r["amount_usd"],
                     completed_at=datetime.fromisoformat(r["completed_at"]),
                     cohort_week_start=date.fromisoformat(r["cohort_week_start"]),
+                    added_at=datetime.fromisoformat(r["added_at"]),
                 )
             )
         return awards

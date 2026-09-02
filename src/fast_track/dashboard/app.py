@@ -56,7 +56,7 @@ st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layou
 
 # Bumped when dashboard behavior changes -- visible in the sidebar so you
 # can confirm Streamlit Cloud picked up a new deploy after merging.
-_DASHBOARD_BUILD = "2026-09-02-v5"
+_DASHBOARD_BUILD = "2026-09-02-v6"
 
 
 @st.cache_data(ttl=300)
@@ -488,12 +488,14 @@ def main() -> None:
     summary = summarize_retention(daily_offsets, window_days)
     curve = retention_curve(daily_offsets)
 
-    st.subheader("Gift retention (pre/post milestone)")
+    st.subheader("Gift retention (pre/post gift card)")
     st.caption(
-        "Sales/GMV come from CreatorIQ transaction history (daily activity sync). "
-        "Posts are shown on the locally-observed first-post date only — CreatorIQ "
-        "does not expose daily post counts, so ongoing post activity after the "
-        "first post is not tracked here."
+        "Pre/post windows are centered on the date the gift row was added to the "
+        "ordering sheet (typically the weekly Tuesday sync), not the milestone date. "
+        "A creator's first post (within 14 days of joining) therefore counts in the "
+        "pre-gift period. Sales/GMV come from CreatorIQ transaction history; posts "
+        "are shown on the first-post date only because CreatorIQ does not expose "
+        "daily post counts."
     )
 
     st.markdown("**Summary**")
