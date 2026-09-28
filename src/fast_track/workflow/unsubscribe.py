@@ -12,7 +12,8 @@ from fast_track.models import Creator
 
 
 def normalize_unsubscribe_term(term: str) -> str:
-    return term.strip().casefold()
+    # CreatorIQ ids are sometimes pasted with a trailing slash from URLs.
+    return term.strip().strip("/").casefold()
 
 
 def _compact_alphanumeric(value: str) -> str:

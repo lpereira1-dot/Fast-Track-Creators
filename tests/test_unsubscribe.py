@@ -20,6 +20,12 @@ def test_creator_matches_handle_in_name():
     assert creator_matches_unsubscribe(creator, "navoyhome")
 
 
+def test_normalize_strips_trailing_slash_from_publisher_id():
+    from fast_track.workflow.unsubscribe import normalize_unsubscribe_term
+
+    assert normalize_unsubscribe_term("35695494/") == "35695494"
+
+
 def test_creator_matches_publisher_id():
     creator = Creator.from_api(
         {
