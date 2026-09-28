@@ -248,6 +248,11 @@ class CreatorEmailConfig:
     min_join_date: date | None = field(
         default_factory=lambda: _env_date("CREATOR_EMAIL_MIN_JOIN_DATE")
     )
+    # Comma-separated handles/ids/emails to never email (merged with DB
+    # unsubscribes from `fast-track unsubscribe-creator`). Example: navoyhome
+    unsubscribes: list[str] = field(
+        default_factory=lambda: _env_list("CREATOR_EMAIL_UNSUBSCRIBES", "")
+    )
 
 
 @dataclass(frozen=True)

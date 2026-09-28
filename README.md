@@ -340,6 +340,16 @@ launches with the cohort admitted on 2026-08-17, so
 cutoff baked in already — update it there if the actual launch date ends
 up moving.
 
+**Unsubscribes**: opt a creator out of all four lifecycle emails with
+`fast-track unsubscribe-creator <term>` (e.g. `navoyhome`, a CreatorIQ
+publisher id, or an email). Terms are stored in the local database and
+matched case-insensitively against publisher id, name, and email. You can
+also set `CREATOR_EMAIL_UNSUBSCRIBES` (comma-separated) in env/secrets for
+the same effect without running the CLI — useful in GitHub Actions
+(`CREATOR_EMAIL_UNSUBSCRIBES=navoyhome`). List current opt-outs with
+`fast-track list-email-unsubscribes`. Unsubscribes do **not** affect gift-card
+sheet sync, only CreatorIQ lifecycle emails.
+
 **Dashboard status**: the dashboard has a "Creator email status" section
 showing who received which email, when, and how many times (for repeating
 reminders) — send status only, not open/click rates. CreatorIQ's

@@ -39,6 +39,7 @@ from fast_track.emails import templates
 from fast_track.models import ActivationRecord, Creator, Milestone
 from fast_track.storage.state_store import StateStore
 from fast_track.workflow.eligibility import evaluate_awards
+from fast_track.workflow.unsubscribe import creator_is_unsubscribed, normalize_unsubscribe_term
 
 logger = logging.getLogger(__name__)
 
@@ -70,14 +71,27 @@ def _due_for_repeat(
     return last_sent is None or (today - last_sent).days >= interval_days
 
 
+def _unsubscribe_terms(store: StateStore, settings: Settings) -> set[str]:
+    terms = store.email_unsubscribe_terms()
+    for raw in settings.creator_email.unsubscribes:
+        normalized = normalize_unsubscribe_term(raw)
+        if normalized:
+            terms.add(normalized)
+    return terms
+
+
 def _plan_emails_for_creator(
     creator: Creator,
     activation: ActivationRecord | None,
     store: StateStore,
     settings: Settings,
     today: date,
+    unsubscribe_terms: set[str],
 ) -> list[tuple[str, str, str]]:
     """Returns [(email_type, subject, body), ...] this creator is due for right now."""
+
+    if creator_is_unsubscribed(creator, unsubscribe_terms):
+        return []
 
     cfg = settings.creator_email
     rules = settings.program
@@ -134,6 +148,7 @@ def run_creator_email_job(
     creators = store.all_creators()
     activation_records = reports_client.fetch_activation([c.creator_id for c in creators])
     activations_by_id = {r.creator_id: r for r in activation_records}
+    unsubscribe_terms = _unsubscribe_terms(store, settings)
 
     # (email_type, subject, body) -> [creators] -- grouped so each email
     # type is sent as a single real bulk call rather than one per creator.
@@ -142,7 +157,7 @@ def run_creator_email_job(
     for creator in creators:
         activation = activations_by_id.get(creator.creator_id)
         for email_type, subject, body in _plan_emails_for_creator(
-            creator, activation, store, settings, today
+            creator, activation, store, settings, today, unsubscribe_terms
         ):
             groups.setdefault(email_type, []).append(creator)
             content_by_type[email_type] = (subject, body)

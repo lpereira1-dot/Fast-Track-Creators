@@ -138,3 +138,12 @@ class CreatorEmailLog:
     email_type: str
     last_sent_at: date
     send_count: int
+
+
+@dataclass(frozen=True)
+class EmailUnsubscribe:
+    """A token (handle, publisher id, email, etc.) opted out of lifecycle emails."""
+
+    term: str
+    added_at: datetime
+    note: str = ""

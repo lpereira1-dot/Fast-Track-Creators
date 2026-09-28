@@ -14,6 +14,7 @@ Tracks several things across workflow runs:
 5. `creator_emails` -- which lifecycle reminder/congrats emails have been
    sent to which creators, and when, so one-time emails never resend and
    repeating reminders know when they last went out.
+6. `email_unsubscribes` -- handles/ids/emails opted out of lifecycle emails.
 
 SQLite (stdlib, zero extra services to run) is intentionally simple here;
 swap in Postgres/BigQuery later by re-implementing this class if the dataset
@@ -26,7 +27,8 @@ import sqlite3
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from fast_track.models import ActivityRecord, Creator, CreatorEmailLog, GiftAward, Milestone
+from fast_track.models import ActivityRecord, Creator, CreatorEmailLog, EmailUnsubscribe, GiftAward, Milestone
+from fast_track.workflow.unsubscribe import normalize_unsubscribe_term
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS creators (
@@ -74,6 +76,14 @@ CREATE TABLE IF NOT EXISTS creator_emails (
     last_sent_at TEXT NOT NULL,
     send_count INTEGER NOT NULL DEFAULT 1,
     PRIMARY KEY (creator_id, email_type)
+);
+
+-- Lifecycle-email opt-outs (see workflow/unsubscribe.py). `term` is the
+-- normalized token (handle, publisher id, email, etc.) the operator passed.
+CREATE TABLE IF NOT EXISTS email_unsubscribes (
+    term TEXT PRIMARY KEY,
+    added_at TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT ''
 );
 """
 
@@ -241,6 +251,44 @@ class StateStore:
             "SELECT creator_id, observed_at FROM first_post_observations"
         ).fetchall()
         return {row["creator_id"]: date.fromisoformat(row["observed_at"]) for row in rows}
+
+    # -- lifecycle email unsubscribes -------------------------------------
+
+    def add_email_unsubscribe(self, term: str, note: str = "") -> EmailUnsubscribe:
+        normalized = normalize_unsubscribe_term(term)
+        if not normalized:
+            raise ValueError("Unsubscribe term cannot be empty.")
+        added_at = datetime.now(timezone.utc)
+        self._conn.execute(
+            "INSERT INTO email_unsubscribes (term, added_at, note) VALUES (?, ?, ?) "
+            "ON CONFLICT(term) DO UPDATE SET note = excluded.note",
+            (normalized, added_at.isoformat(), note),
+        )
+        self._conn.commit()
+        return EmailUnsubscribe(term=normalized, added_at=added_at, note=note)
+
+    def remove_email_unsubscribe(self, term: str) -> bool:
+        normalized = normalize_unsubscribe_term(term)
+        cursor = self._conn.execute("DELETE FROM email_unsubscribes WHERE term = ?", (normalized,))
+        self._conn.commit()
+        return cursor.rowcount > 0
+
+    def email_unsubscribe_terms(self) -> set[str]:
+        rows = self._conn.execute("SELECT term FROM email_unsubscribes").fetchall()
+        return {r["term"] for r in rows}
+
+    def all_email_unsubscribes(self) -> list[EmailUnsubscribe]:
+        rows = self._conn.execute(
+            "SELECT term, added_at, note FROM email_unsubscribes ORDER BY added_at DESC"
+        ).fetchall()
+        return [
+            EmailUnsubscribe(
+                term=r["term"],
+                added_at=datetime.fromisoformat(r["added_at"]),
+                note=r["note"] or "",
+            )
+            for r in rows
+        ]
 
     # -- creator lifecycle emails -------------------------------------------
 

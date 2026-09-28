@@ -3,6 +3,8 @@
     fast-track run-weekly-job [--dry-run]     # pull new cohorts, sync gift-sheet
     fast-track sync-activity                  # refresh activity history for the dashboard
     fast-track send-creator-emails [--dry-run]  # send lifecycle reminder/congrats emails
+    fast-track unsubscribe-creator <term>     # opt a handle/id/email out of lifecycle emails
+    fast-track list-email-unsubscribes        # show stored opt-outs
     fast-track dashboard                      # launch the Streamlit retention dashboard
 """
 
@@ -22,6 +24,7 @@ from fast_track.storage.state_store import StateStore
 from fast_track.workflow.activity_sync import run_activity_sync_job
 from fast_track.workflow.backfill import run_backfill_job
 from fast_track.workflow.creator_emails import run_creator_email_job
+from fast_track.workflow.unsubscribe_ops import record_unsubscribe
 from fast_track.workflow.weekly_job import run_weekly_cohort_job
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -103,6 +106,34 @@ def cmd_send_creator_emails(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_unsubscribe_creator(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    with StateStore(settings.storage.db_path) as store:
+        result = record_unsubscribe(store, args.term, note=args.note or "")
+    print(result.summary())
+    return 0
+
+
+def cmd_list_email_unsubscribes(_args: argparse.Namespace) -> int:
+    settings = get_settings()
+    with StateStore(settings.storage.db_path) as store:
+        rows = store.all_email_unsubscribes()
+        env_terms = [t for t in settings.creator_email.unsubscribes if t.strip()]
+    if not rows and not env_terms:
+        print("No lifecycle email unsubscribes recorded (DB or CREATOR_EMAIL_UNSUBSCRIBES).")
+        return 0
+    if rows:
+        print("Database unsubscribes:")
+        for row in rows:
+            suffix = f" — {row.note}" if row.note else ""
+            print(f"  - {row.term} (since {row.added_at.date()}){suffix}")
+    if env_terms:
+        print("Environment (CREATOR_EMAIL_UNSUBSCRIBES):")
+        for term in env_terms:
+            print(f"  - {term}")
+    return 0
+
+
 def cmd_dashboard(_args: argparse.Namespace) -> int:
     app_path = Path(__file__).resolve().parent / "dashboard" / "app.py"
     return subprocess.call([sys.executable, "-m", "streamlit", "run", str(app_path)])
@@ -145,6 +176,23 @@ def main(argv: list[str] | None = None) -> int:
         help="Print who would be emailed without actually sending or recording anything.",
     )
     creator_emails.set_defaults(func=cmd_send_creator_emails)
+
+    unsubscribe = subparsers.add_parser(
+        "unsubscribe-creator",
+        help="Opt a creator out of lifecycle emails (handle, publisher id, or email).",
+    )
+    unsubscribe.add_argument(
+        "term",
+        help="Token to block, e.g. navoyhome or a CreatorIQ publisher id.",
+    )
+    unsubscribe.add_argument("--note", help="Optional note (why they unsubscribed).")
+    unsubscribe.set_defaults(func=cmd_unsubscribe_creator)
+
+    list_unsubs = subparsers.add_parser(
+        "list-email-unsubscribes",
+        help="List lifecycle email opt-outs stored in the database and env.",
+    )
+    list_unsubs.set_defaults(func=cmd_list_email_unsubscribes)
 
     dashboard = subparsers.add_parser("dashboard", help="Launch the Streamlit retention dashboard.")
     dashboard.set_defaults(func=cmd_dashboard)
