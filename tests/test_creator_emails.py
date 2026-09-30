@@ -258,6 +258,41 @@ def test_min_join_date_unset_considers_every_creator(tmp_path):
     assert [(c.creator_id, t) for c, t in result.sent] == [("c-old", WELCOME)]
 
 
+def test_welcome_is_not_sent_on_consecutive_daily_runs(tmp_path):
+    creator = _creator("33830017", "2026-08-17T00:00:00Z")
+    base_settings = _settings()
+    creator_email = replace(base_settings.creator_email, min_join_date=date(2026, 8, 17))
+    settings = replace(base_settings, creator_email=creator_email)
+    db_path = tmp_path / "state.db"
+
+    with StateStore(db_path) as store:
+        store.upsert_creators([creator])
+        client = FakeActivationClient({})
+        sender = FakeEmailSender()
+        run_creator_email_job(client, sender, store, settings, today=date(2026, 8, 17))
+
+    with StateStore(db_path) as store:
+        sender = FakeEmailSender()
+        result = run_creator_email_job(
+            FakeActivationClient({}), sender, store, settings, today=date(2026, 8, 18)
+        )
+
+    assert result.sent == []
+    assert sender.sent == []
+
+
+def test_drip_sends_only_one_email_type_per_creator_per_run(tmp_path):
+    creator = _creator("c-1", "2026-08-01T00:00:00Z")
+    with StateStore(tmp_path / "state.db") as store:
+        store.upsert_creators([creator])
+        client = FakeActivationClient({})
+        sender = FakeEmailSender()
+        result = run_creator_email_job(client, sender, store, _settings(), today=date(2026, 8, 8))
+
+    assert [(c.creator_id, t) for c, t in result.sent] == [("c-1", WELCOME)]
+    assert len(sender.sent) == 1
+
+
 def test_send_failure_does_not_record_and_is_retried_next_run(tmp_path):
     creator = _creator("c-1", "2026-08-01T00:00:00Z")
     with StateStore(tmp_path / "state.db") as store:

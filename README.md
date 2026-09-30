@@ -340,6 +340,17 @@ launches with the cohort admitted on 2026-08-17, so
 cutoff baked in already — update it there if the actual launch date ends
 up moving.
 
+**Welcome should only send once** per creator; reminders repeat on a
+schedule (every `CREATOR_EMAIL_REMINDER_INTERVAL_DAYS`). Only **one**
+lifecycle email goes out per creator per daily run (drip priority:
+sale congrats → welcome → sale reminder → post reminder). Send history
+lives in `data/fast_track.db`; GitHub Actions carries it forward via the
+`fast-track-db` artifact. If artifact restore fails, jobs now **abort**
+instead of uploading a blank database (which previously erased send
+history and caused welcome emails to repeat daily). To repair one
+creator manually after a bad run:
+`fast-track mark-lifecycle-email-sent 33830017 welcome`.
+
 **Unsubscribes**: opt a creator out of all four lifecycle emails with
 `fast-track unsubscribe-creator <term>` (e.g. `navoyhome`, a CreatorIQ
 publisher id, or an email). Terms are stored in the local database and

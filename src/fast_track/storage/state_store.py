@@ -314,6 +314,10 @@ class StateStore:
         )
         self._conn.commit()
 
+    def lifecycle_email_log_count(self) -> int:
+        row = self._conn.execute("SELECT COUNT(*) AS n FROM creator_emails").fetchone()
+        return int(row["n"])
+
     def all_creator_emails(self) -> list[CreatorEmailLog]:
         """Every (creator, email_type) send record -- for the dashboard's
 

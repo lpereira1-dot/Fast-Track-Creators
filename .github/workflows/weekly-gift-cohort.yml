@@ -44,6 +44,7 @@ jobs:
       - name: Restore state database from latest artifact
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FAST_TRACK_STRICT_DB_SYNC: "1"
         run: python scripts/sync_db_from_artifact.py
 
       - name: Run weekly cohort job
@@ -62,6 +63,9 @@ jobs:
           ARGS=""
           if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="--dry-run"; fi
           fast-track run-weekly-job $ARGS
+
+      - name: Guard database upload (do not erase email send history)
+        run: python scripts/db_email_log_baseline.py guard
 
       - name: Upload state database artifact
         uses: actions/upload-artifact@v4

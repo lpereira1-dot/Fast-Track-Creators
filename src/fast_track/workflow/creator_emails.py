@@ -48,6 +48,9 @@ SALE_REMINDER = "sale_reminder"
 POST_REMINDER = "post_reminder"
 SALE_CONGRATS = "sale_congrats"
 
+# Drip: at most one lifecycle email per creator per daily run (highest priority wins).
+_EMAIL_PRIORITY = (SALE_CONGRATS, WELCOME, SALE_REMINDER, POST_REMINDER)
+
 
 @dataclass
 class CreatorEmailJobResult:
@@ -132,7 +135,19 @@ def _plan_emails_for_creator(
             subject, body = templates.post_reminder_email(cfg, today)
             planned.append((POST_REMINDER, subject, body))
 
-    return planned
+    return _pick_single_drip_email(planned)
+
+
+def _pick_single_drip_email(planned: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+    """Keep at most one email per creator per day (true drip, not a stack)."""
+
+    if len(planned) <= 1:
+        return planned
+    for email_type in _EMAIL_PRIORITY:
+        for item in planned:
+            if item[0] == email_type:
+                return [item]
+    return planned[:1]
 
 
 def run_creator_email_job(
