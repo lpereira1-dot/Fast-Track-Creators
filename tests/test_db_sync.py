@@ -81,21 +81,25 @@ def test_sync_raises_on_http_error(tmp_path):
 
 
 class TestCiSyncScript:
-    """Covers scripts/sync_db_from_artifact.py -- the CI-bootstrap entrypoint
+    """Covers scripts/sync_db_from_artifact.py -- the CI-bootstrap entrypoint."""
 
-    that replaced actions/cache in the scheduled workflows (see its
-    docstring for why). Never raises/exits non-zero: a sync problem here
-    should degrade to "start with an empty database", not fail the job.
-    """
-
-    def test_exits_cleanly_when_env_vars_missing(self, monkeypatch, tmp_path):
+    def test_strict_mode_aborts_when_env_vars_missing(self, monkeypatch, tmp_path):
         monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
         monkeypatch.delenv("GITHUB_TOKEN", raising=False)
         monkeypatch.setenv("FAST_TRACK_DB_PATH", str(tmp_path / "fast_track.db"))
+        monkeypatch.setenv("FAST_TRACK_STRICT_DB_SYNC", "1")
+
+        assert sync_db_from_artifact.main() == 2
+
+    def test_non_strict_mode_allows_missing_env(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+        monkeypatch.setenv("FAST_TRACK_DB_PATH", str(tmp_path / "fast_track.db"))
+        monkeypatch.setenv("FAST_TRACK_STRICT_DB_SYNC", "0")
 
         assert sync_db_from_artifact.main() == 0
 
-    def test_exits_cleanly_and_syncs_when_artifact_found(self, monkeypatch, tmp_path):
+    def test_syncs_and_writes_baseline_when_artifact_found(self, monkeypatch, tmp_path):
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         monkeypatch.setenv("GITHUB_TOKEN", "tok")
         dest = tmp_path / "fast_track.db"
@@ -103,15 +107,17 @@ class TestCiSyncScript:
 
         with patch.object(sync_db_from_artifact, "sync_db_from_github_artifact", return_value=True):
             assert sync_db_from_artifact.main() == 0
+        assert dest.with_name("fast_track.db.email_log_baseline").exists()
 
-    def test_exits_cleanly_when_underlying_sync_raises(self, monkeypatch, tmp_path):
+    def test_strict_mode_aborts_when_underlying_sync_raises(self, monkeypatch, tmp_path):
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         monkeypatch.setenv("GITHUB_TOKEN", "tok")
         monkeypatch.setenv("FAST_TRACK_DB_PATH", str(tmp_path / "fast_track.db"))
+        monkeypatch.setenv("FAST_TRACK_STRICT_DB_SYNC", "1")
 
         with patch.object(
             sync_db_from_artifact,
             "sync_db_from_github_artifact",
             side_effect=requests.HTTPError("boom"),
         ):
-            assert sync_db_from_artifact.main() == 0
+            assert sync_db_from_artifact.main() == 2

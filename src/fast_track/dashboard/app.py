@@ -154,6 +154,15 @@ def load_email_log(db_path: str):
         store.close()
 
 
+@st.cache_data(ttl=300)
+def load_email_unsubscribes(db_path: str):
+    store = StateStore(db_path)
+    try:
+        return store.all_email_unsubscribes()
+    finally:
+        store.close()
+
+
 def _cohort_week_start(joined: date, week_start_weekday: int) -> date:
     """Bucket a join date into its cohort week (matches `Creator.cohort_week_start`)."""
 
@@ -351,6 +360,20 @@ def render_creator_email_status(email_log: list, cohort_creators: list[Creator])
     st.dataframe(table, use_container_width=True, hide_index=True)
 
 
+def render_email_unsubscribes(unsubscribes: list, env_terms: list[str]) -> None:
+    if not unsubscribes and not env_terms:
+        return
+    st.subheader("Lifecycle email unsubscribes")
+    st.caption(
+        "These creators are excluded from welcome/reminder/congrats emails "
+        "(gift-card sheet sync is unaffected)."
+    )
+    rows = [{"Term": u.term, "Added": u.added_at.date(), "Note": u.note} for u in unsubscribes]
+    for term in env_terms:
+        rows.append({"Term": term, "Added": "(env)", "Note": "CREATOR_EMAIL_UNSUBSCRIBES"})
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+
 def main() -> None:
     settings = get_settings()
     week_start_weekday = settings.program.cohort_week_start_weekday
@@ -379,6 +402,7 @@ def main() -> None:
             load_creators.clear()
             load_data.clear()
             load_email_log.clear()
+            load_email_unsubscribes.clear()
             load_activation_data.clear()
             st.rerun()
 
@@ -465,6 +489,10 @@ def main() -> None:
         cohort_email_log,
     )
     render_creator_email_status(email_log, cohort_creators)
+    render_email_unsubscribes(
+        load_email_unsubscribes(settings.storage.db_path),
+        [t for t in settings.creator_email.unsubscribes if t.strip()],
+    )
 
     if not awards:
         if cohort_creators:
