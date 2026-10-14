@@ -18,6 +18,7 @@ from datetime import date, timedelta
 
 from fast_track.api.creatoriq import ReportsClient
 from fast_track.config import Settings
+from fast_track.email_utils import is_valid_email
 from fast_track.models import Creator, GiftAward
 from fast_track.sheets.gift_order_sheet import GiftOrderSheetClient
 from fast_track.storage.state_store import StateStore
@@ -89,12 +90,18 @@ def _resolve_award_email(award: GiftAward, reports_client: ReportsClient) -> Gif
     gift and need an email on their sheet row.
     """
 
-    if award.creator.email:
+    if is_valid_email(award.creator.email):
         return award
     email = reports_client.fetch_creator_email(award.creator.creator_id)
-    if not email:
+    if not is_valid_email(email):
         return award
     return replace(award, creator=replace(award.creator, email=email))
+
+
+def _awards_ready_for_sheet(awards: list[GiftAward]) -> tuple[list[GiftAward], list[GiftAward]]:
+    ready = [a for a in awards if is_valid_email(a.creator.email)]
+    deferred = [a for a in awards if not is_valid_email(a.creator.email)]
+    return ready, deferred
 
 
 def run_weekly_cohort_job(
@@ -127,18 +134,26 @@ def run_weekly_cohort_job(
     awards = evaluate_all_awards(eligible_creators, activations_by_id, settings.program)
     new_awards = store.filter_unrecorded(awards)
     new_awards = [_resolve_award_email(a, reports_client) for a in new_awards]
-    if new_awards:
-        store.upsert_creators([a.creator for a in new_awards])
+    ready_awards, deferred_awards = _awards_ready_for_sheet(new_awards)
+    if deferred_awards:
+        for award in deferred_awards:
+            logger.warning(
+                "Deferring gift-sheet row for %s (%s): no valid email after CreatorIQ lookup",
+                award.creator.creator_id,
+                award.milestone.label,
+            )
+    if ready_awards:
+        store.upsert_creators([a.creator for a in ready_awards])
 
     if dry_run or sheet_client is None:
-        newly_added = new_awards
+        newly_added = ready_awards
         if sheet_client is None and not dry_run:
             logger.warning(
                 "No Google Sheets client configured; running in dry-run mode. "
                 "Set GIFT_ORDER_SHEET_ID and GOOGLE_SERVICE_ACCOUNT_JSON to sync for real."
             )
     else:
-        newly_added = sheet_client.append_awards(new_awards)
+        newly_added = sheet_client.append_awards(ready_awards)
         # Record everything that currently qualifies and wasn't already
         # locally known -- not just whatever the sheet-level dedup decided
         # was new to *write* this run. record_awards is idempotent (INSERT
@@ -148,7 +163,7 @@ def run_weekly_cohort_job(
         # sheet itself still had these rows from before), it catches back
         # up to reality on the very next run instead of permanently
         # under-counting the same awards forever.
-        store.record_awards(new_awards)
+        store.record_awards(ready_awards)
 
     return WeeklyJobResult(
         window_start=window_start,

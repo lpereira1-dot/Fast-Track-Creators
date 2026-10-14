@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from datetime import date, datetime
 
 import gspread
@@ -7,6 +8,13 @@ import pytest
 from fast_track.config import GoogleSheetsConfig
 from fast_track.models import Creator, GiftAward, Milestone
 from fast_track.sheets.gift_order_sheet import GiftOrderSheetClient, _build_gspread_client
+
+
+class FakeCell:
+    def __init__(self, row, col, value):
+        self.row = row
+        self.col = col
+        self.value = value
 
 
 class FakeWorksheet:
@@ -28,6 +36,15 @@ class FakeWorksheet:
             return []
         header = self._rows[0]
         return [dict(zip(header, row)) for row in self._rows[1:]]
+
+    def update_cells(self, cells, value_input_option="RAW"):
+        for cell in cells:
+            while len(self._rows) < cell.row:
+                self._rows.append([])
+            row = self._rows[cell.row - 1]
+            while len(row) < cell.col:
+                row.append("")
+            row[cell.col - 1] = cell.value
 
 
 class FakeSpreadsheet:
@@ -158,6 +175,39 @@ def test_build_gspread_client_uses_file_path_when_not_json(monkeypatch, tmp_path
     )
     _build_gspread_client(config)
     assert captured["filename"] == str(service_account_path)
+
+
+def test_apply_email_updates_rewrites_invalid_cells(monkeypatch, tmp_path):
+    monkeypatch.setattr(gspread, "Cell", FakeCell)
+    config = make_config(tmp_path)
+    fake_client = FakeGspreadClient()
+    sheets_client = GiftOrderSheetClient(config, gspread_client=fake_client)
+    bad_award = replace(
+        make_award("c-bad", Milestone.FIRST_POST),
+        creator=replace(make_award("c-bad", Milestone.FIRST_POST).creator, email="athomewithkristinsmith"),
+    )
+    sheets_client.append_awards([bad_award])
+
+    applied = sheets_client.apply_email_updates([(2, "c-bad", "fixed@example.com")])
+
+    assert applied == 1
+    worksheet = fake_client.spreadsheets["sheet-123"].worksheet("Gift Card Orders")
+    assert worksheet.get_all_records()[0]["Email"] == "fixed@example.com"
+
+
+def test_rows_missing_valid_email_lists_bad_rows(tmp_path):
+    config = make_config(tmp_path)
+    fake_client = FakeGspreadClient()
+    sheets_client = GiftOrderSheetClient(config, gspread_client=fake_client)
+    bad_award = replace(
+        make_award("c-bad", Milestone.FIRST_POST),
+        creator=replace(make_award("c-bad", Milestone.FIRST_POST).creator, email="partial@"),
+    )
+    sheets_client.append_awards([bad_award])
+
+    missing = sheets_client.rows_missing_valid_email()
+
+    assert missing == [(2, "c-bad", "partial@")]
 
 
 def test_build_gspread_client_accepts_raw_json_contents(monkeypatch):

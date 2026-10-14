@@ -127,7 +127,13 @@ account**, which surfaced a few things worth knowing:
   expensive per creator, `fetch_new_creators` leaves email blank and
   `CreatorIQClient.fetch_creator_email` is only called lazily, for the
   handful of creators who actually qualify for a gift (see
-  `workflow/weekly_job.py`).
+  `workflow/weekly_job.py`). Roster strings that look like handles or
+  truncated addresses (e.g. `user@` without a domain) are ignored so the
+  job always prefers the CRM contact lookup. Rows are not appended to the
+  gift sheet until a valid email is resolved; re-run the weekly job on the
+  next schedule (or manually) to retry deferred rows. To repair rows that
+  were written before this validation shipped, run
+  `fast-track backfill-gift-sheet-emails` (or `--dry-run` first).
 - **"First post" has no true CreatorIQ timestamp, so it's tracked locally
   as a proxy.** The roster's `ActualPostsTotal` is a live cumulative count
   with no per-post date attached (and its sibling field,
