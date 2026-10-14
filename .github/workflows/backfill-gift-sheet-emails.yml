@@ -1,0 +1,43 @@
+name: Backfill gift-sheet emails
+
+# Repairs Email cells on the ordering sheet (blank, handles, or truncated
+# roster strings) by re-fetching from CreatorIQ. Safe to run any time;
+# only updates invalid Email cells, never adds rows.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List rows that would be updated without writing to the sheet"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      - name: Backfill gift-sheet emails
+        env:
+          CREATORIQ_API_KEY: ${{ secrets.CREATORIQ_API_KEY }}
+          CREATORIQ_BASE_URL: ${{ secrets.CREATORIQ_BASE_URL }}
+          CREATORIQ_CAMPAIGN_ID: ${{ secrets.CREATORIQ_CAMPAIGN_ID }}
+          GIFT_ORDER_SHEET_ID: ${{ secrets.GIFT_ORDER_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          ARGS=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="--dry-run"
+          fi
+          fast-track backfill-gift-sheet-emails $ARGS

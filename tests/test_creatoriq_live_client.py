@@ -127,6 +127,20 @@ def test_fetch_new_creators_returns_empty_without_campaign_id():
     assert client.fetch_new_creators(since=date(2026, 7, 1), until=date(2026, 8, 6)) == []
 
 
+def test_fetch_creator_email_uses_publisher_fields_before_contact_href():
+    session = FakeSession()
+    session.network_id_by_internal_id["99"] = "100"
+    session.publishers_by_network_id["100"] = {
+        "Email": "direct@example.com",
+        "Address": {"href": "https://apis.creatoriq.com/crm/v1/api/data/contact/1"},
+    }
+    client = CreatorIQClient(_config(campaign_id="555"), session=session)
+
+    assert client.fetch_creator_email("99") == "direct@example.com"
+    # Contact endpoint should not be hit when publisher already has a valid email.
+    assert not any("/data/contact/" in url for url, _params, _headers in session.calls)
+
+
 def test_fetch_creator_email_resolves_through_id_translation_chain():
     session = FakeSession()
     session.network_id_by_internal_id["24415638"] = "10021983988"

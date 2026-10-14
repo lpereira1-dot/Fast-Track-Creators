@@ -43,6 +43,7 @@ from fast_track.api.field_mapper import (
     first_present,
 )
 from fast_track.config import CreatorIQConfig
+from fast_track.email_utils import is_valid_email, normalize_email
 from fast_track.models import ActivationRecord, ActivityRecord, Creator
 
 DEFAULT_FIXTURES_DIR = Path(__file__).resolve().parents[3] / "fixtures" / "creatoriq"
@@ -102,11 +103,14 @@ def _publisher_to_creator(raw: dict) -> Creator | None:
     joined_at = first_present(raw, PUBLISHER_JOINED_FIELDS)
     if creator_id is None or joined_at is None:
         return None
+    roster_email = normalize_email(first_present(raw, PUBLISHER_EMAIL_FIELDS))
+    if not is_valid_email(roster_email):
+        roster_email = ""
     return Creator.from_api(
         {
             "creator_id": creator_id,
             "name": first_present(raw, PUBLISHER_NAME_FIELDS) or "",
-            "email": first_present(raw, PUBLISHER_EMAIL_FIELDS) or "",
+            "email": roster_email,
             "joined_at": joined_at,
         }
     )
@@ -291,14 +295,30 @@ class CreatorIQClient:
                 pub_url, headers=self._headers(), timeout=cfg.timeout_seconds
             )
             pub_response.raise_for_status()
-            address_href = pub_response.json().get("Publisher", {}).get("Address", {}).get("href")
+            publisher = pub_response.json().get("Publisher", {}) or {}
+            direct = normalize_email(first_present(publisher, PUBLISHER_EMAIL_FIELDS))
+            if is_valid_email(direct):
+                return direct
+            address = publisher.get("Address")
+            if isinstance(address, dict):
+                embedded = normalize_email(
+                    first_present(address, PUBLISHER_EMAIL_FIELDS) or address.get("Email")
+                )
+                if is_valid_email(embedded):
+                    return embedded
+                address_href = address.get("href")
+            else:
+                address_href = None
             if not address_href:
                 return ""
             addr_response = self._session.get(
                 address_href, headers=self._headers(), timeout=cfg.timeout_seconds
             )
             addr_response.raise_for_status()
-            return addr_response.json().get("Address", {}).get("Email") or ""
+            resolved = normalize_email(
+                addr_response.json().get("Address", {}).get("Email")
+            )
+            return resolved if is_valid_email(resolved) else ""
         except requests.RequestException as exc:
             logger.warning("Failed to look up email for publisher %s: %s", creator_id, exc)
             return ""

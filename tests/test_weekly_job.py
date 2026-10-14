@@ -179,6 +179,40 @@ def test_weekly_job_excludes_creators_before_min_join_date(tmp_path):
         assert store.all_awards() == []
 
 
+def test_weekly_job_defers_sheet_row_when_email_lookup_fails(tmp_path):
+    settings = Settings()
+    creator = Creator.from_api(
+        {
+            "creator_id": "c-no-email",
+            "name": "No Email",
+            "email": "not-a-real-email",
+            "joined_at": "2026-07-25T00:00:00Z",
+        }
+    )
+    activation = ActivationRecord.from_api(
+        {
+            "creator_id": "c-no-email",
+            "first_post_at": "2026-07-26T00:00:00Z",
+            "first_sale_at": None,
+        }
+    )
+
+    class EmptyEmailClient(SingleCreatorReportsClient):
+        def fetch_creator_email(self, creator_id):
+            return ""
+
+    client = EmptyEmailClient(creator, activation)
+    sheet = FakeSheetClient()
+
+    with StateStore(tmp_path / "state.db") as store:
+        result = run_weekly_cohort_job(
+            client, store, settings, sheet_client=sheet, today=date(2026, 8, 5)
+        )
+        assert result.newly_added_awards == []
+        assert sheet.rows == []
+        assert store.all_awards() == []
+
+
 def test_weekly_job_dry_run_does_not_touch_sheet_or_state(tmp_path):
     settings = Settings()
     client = FixtureCreatorIQClient()

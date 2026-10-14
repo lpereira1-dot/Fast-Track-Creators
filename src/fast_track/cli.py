@@ -6,6 +6,7 @@
     fast-track unsubscribe-creator <term>     # opt a handle/id/email out of lifecycle emails
     fast-track list-email-unsubscribes        # show stored opt-outs
     fast-track mark-lifecycle-email-sent ...  # repair send-history (stop repeat welcomes)
+    fast-track backfill-gift-sheet-emails     # fix bad/missing Email cells on the ordering sheet
     fast-track dashboard                      # launch the Streamlit retention dashboard
 """
 
@@ -32,6 +33,7 @@ from fast_track.workflow.creator_emails import (
     run_creator_email_job,
 )
 from fast_track.workflow.unsubscribe_ops import record_unsubscribe
+from fast_track.workflow.gift_sheet_email_backfill import run_gift_sheet_email_backfill
 from fast_track.workflow.weekly_job import run_weekly_cohort_job
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -60,6 +62,20 @@ def cmd_run_weekly_job(args: argparse.Namespace) -> int:
             sheet_client=sheet_client,
             dry_run=args.dry_run,
         )
+    print(result.summary())
+    return 0
+
+
+def cmd_backfill_gift_sheet_emails(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    sheet_client = _build_sheet_client(settings)
+    if sheet_client is None:
+        logger.error("Google Sheets credentials are required for gift-sheet email backfill.")
+        return 1
+    reports_client = build_reports_client(settings.creatoriq)
+    result = run_gift_sheet_email_backfill(
+        reports_client, sheet_client, dry_run=args.dry_run
+    )
     print(result.summary())
     return 0
 
@@ -240,6 +256,17 @@ def main(argv: list[str] | None = None) -> int:
         help="Date the email was sent (YYYY-MM-DD). Defaults to today.",
     )
     mark_sent.set_defaults(func=cmd_mark_lifecycle_email_sent)
+
+    sheet_emails = subparsers.add_parser(
+        "backfill-gift-sheet-emails",
+        help="Re-fetch CreatorIQ emails and update invalid/blank Email cells on the gift sheet.",
+    )
+    sheet_emails.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print how many rows would be updated without writing to the sheet.",
+    )
+    sheet_emails.set_defaults(func=cmd_backfill_gift_sheet_emails)
 
     dashboard = subparsers.add_parser("dashboard", help="Launch the Streamlit retention dashboard.")
     dashboard.set_defaults(func=cmd_dashboard)

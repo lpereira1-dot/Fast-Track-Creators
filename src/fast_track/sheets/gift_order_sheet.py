@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 import gspread
 
 from fast_track.config import GoogleSheetsConfig
+from fast_track.email_utils import is_valid_email
 from fast_track.models import GiftAward
 
 
@@ -102,3 +103,39 @@ class GiftOrderSheetClient:
         rows = [self._row_for(a, added_at) for a in to_append]
         self._worksheet.append_rows(rows, value_input_option="RAW")
         return to_append
+
+    def _column_index(self, header_name: str) -> int:
+        header = self._worksheet.row_values(1)
+        try:
+            return header.index(header_name) + 1
+        except ValueError:
+            raise ValueError(f"Column {header_name!r} not found in gift-order sheet header")
+
+    def rows_missing_valid_email(self) -> list[tuple[int, str, str]]:
+        """(sheet_row_number, creator_id, current_email) for rows needing repair."""
+
+        records = self._worksheet.get_all_records()
+        missing: list[tuple[int, str, str]] = []
+        for offset, record in enumerate(records):
+            row_number = offset + 2
+            creator_id = str(record.get("Creator ID", "")).strip()
+            email = str(record.get("Email", "")).strip()
+            if not creator_id:
+                continue
+            if is_valid_email(email):
+                continue
+            missing.append((row_number, creator_id, email))
+        return missing
+
+    def apply_email_updates(self, updates: list[tuple[int, str, str]]) -> int:
+        """Set Email for sheet rows. Each tuple is (row_number, creator_id, email)."""
+
+        if not updates:
+            return 0
+        email_col = self._column_index("Email")
+        cells = [
+            gspread.Cell(row=row_number, col=email_col, value=email)
+            for row_number, _creator_id, email in updates
+        ]
+        self._worksheet.update_cells(cells, value_input_option="RAW")
+        return len(cells)
