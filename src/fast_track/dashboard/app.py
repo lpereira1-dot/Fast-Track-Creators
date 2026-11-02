@@ -64,7 +64,7 @@ st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layou
 
 # Bumped when dashboard behavior changes -- visible in the sidebar so you
 # can confirm Streamlit Cloud picked up a new deploy after merging.
-_DASHBOARD_BUILD = "2026-11-02-v1"
+_DASHBOARD_BUILD = "2026-11-02-v2"
 
 
 @st.cache_data(ttl=300)
@@ -430,6 +430,10 @@ def main() -> None:
     cohort_weeks = sorted(cohorts_by_week.keys())
     current_cohort_week = _cohort_week_start(date.today(), week_start_weekday)
 
+    selected_cohorts: list[date] = []
+    selected_creator_ids: set[str] = set()
+    admit_filter_label = ""
+
     if cohort_weeks:
         default_cohorts = _default_cohort_weeks(cohort_weeks, awards, week_start_weekday)
 
@@ -439,22 +443,29 @@ def main() -> None:
             if week_start == current_cohort_week:
                 label = f"This week ({label})"
             return f"{label} — {count} creator(s)"
+    else:
+        default_cohorts = []
+        if github_configured:
+            st.info(
+                "No creators in the roster yet. Run the weekly cohort job (Tuesdays) "
+                "or click **Refresh data** in the sidebar after it completes."
+            )
+        else:
+            st.info("Configure GitHub sync in Streamlit Secrets to load the creator roster.")
 
-        filter_col, _spacer = st.columns([2, 3])
-        with filter_col:
+    with st.sidebar:
+        st.header("Filters")
+        if cohort_weeks:
             admit_filter = st.radio(
                 "Admitted creators",
                 options=["Week", "Month", "Multiple cohort weeks"],
-                horizontal=True,
+                index=1,
                 help=(
                     "Filter activation status, emails, and gift retention by "
-                    "when creators joined the program (CreatorIQ admit date)."
+                    "when creators joined the program (CreatorIQ admit date). "
+                    "Choose Month to filter by calendar month."
                 ),
             )
-
-            selected_cohorts: list[date] = []
-            selected_creator_ids: set[str] = set()
-            admit_filter_label = ""
 
             if admit_filter == "Week":
                 default_day = default_cohorts[0] if default_cohorts else date.today()
@@ -487,7 +498,7 @@ def main() -> None:
                         }
                     )
                 else:
-                    st.info("No creators in the roster yet.")
+                    st.caption("No creators in roster yet.")
             else:
                 selected_cohorts = st.multiselect(
                     "Cohort week (admitted)",
@@ -501,23 +512,10 @@ def main() -> None:
                     for creator in cohorts_by_week.get(week, [])
                 }
                 admit_filter_label = f"{len(selected_cohorts)} cohort week(s)"
-    else:
-        selected_cohorts = []
-        selected_creator_ids = set()
-        admit_filter_label = ""
-        if github_configured:
-            st.info(
-                "No creators in the roster yet. Run the weekly cohort job (Tuesdays) "
-                "or click **Refresh data** in the sidebar after it completes."
-            )
-        else:
-            st.info("Configure GitHub sync in Streamlit Secrets to load the creator roster.")
 
-    with st.sidebar:
-        st.header("Filters")
-        if cohort_weeks:
             st.caption(
-                f"Viewing {len(selected_creator_ids)} creator(s) · {admit_filter_label or 'no filter'}"
+                f"Viewing {len(selected_creator_ids)} creator(s)"
+                + (f" · {admit_filter_label}" if admit_filter_label else "")
             )
         else:
             st.caption("No cohort weeks available yet.")
