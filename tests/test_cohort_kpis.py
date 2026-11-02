@@ -4,6 +4,7 @@ from fast_track.dashboard.cohort_kpis import (
     cohort_month_kpis,
     format_count_delta,
     format_rate_delta,
+    month_over_month_activation_table,
     month_over_month_table,
     previous_month_start,
 )
@@ -33,6 +34,33 @@ def test_format_count_delta():
 
 def test_format_rate_delta():
     assert format_rate_delta(50.0, 40.0) == "+10.0 pp"
+
+
+def test_month_over_month_activation_table_focuses_on_posted_and_sold():
+    prior = {
+        "n_creators": 10,
+        "n_posted": 5,
+        "post_rate": 50.0,
+        "n_first_sale": 2,
+        "sale_rate": 20.0,
+        "n_gifted": 0,
+        "gift_spend": 0.0,
+        "pre_posting_rate": None,
+    }
+    current = {
+        "n_creators": 12,
+        "n_posted": 9,
+        "post_rate": 75.0,
+        "n_first_sale": 4,
+        "sale_rate": 33.3,
+        "n_gifted": 0,
+        "gift_spend": 0.0,
+        "pre_posting_rate": None,
+    }
+    table = month_over_month_activation_table("July 2026", "August 2026", prior, current)
+    assert list(table["Metric"]) == ["Creators admitted", "Posted (at least once)", "First sale"]
+    posted = table[table["Metric"] == "Posted (at least once)"].iloc[0]
+    assert posted["Change vs prior month"] == "+4 (+80.0%)"
 
 
 def test_month_over_month_table_columns():

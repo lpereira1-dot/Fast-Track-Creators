@@ -42,6 +42,7 @@ for _key, _value in _secrets.items():
 from fast_track.config import get_settings  # noqa: E402
 from fast_track.dashboard.cohort_kpis import (  # noqa: E402
     cohort_month_kpis,
+    month_over_month_activation_table,
     month_over_month_table,
     previous_month_start,
 )
@@ -69,7 +70,7 @@ st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layou
 
 # Bumped when dashboard behavior changes -- visible in the sidebar so you
 # can confirm Streamlit Cloud picked up a new deploy after merging.
-_DASHBOARD_BUILD = "2026-11-02-v3"
+_DASHBOARD_BUILD = "2026-11-02-v4"
 
 
 @st.cache_data(ttl=300)
@@ -551,16 +552,44 @@ def main() -> None:
         current_kpis = cohort_month_kpis(
             selected_creator_ids, creators, first_posts, first_sale_dates, awards
         )
-        st.subheader("Month over month")
+        st.subheader("Month over month — posted & sold")
         st.caption(
-            f"Change from **{prior_label}** (prior month) to **{current_label}** "
-            "(selected month). All rows use creators by program admit date."
+            f"Creators who **joined** in **{prior_label}** vs **{current_label}**, "
+            "and how many have posted or made a first sale (same definitions as activation status below)."
         )
+
+        mom_cols = st.columns(4)
+        mom_cols[0].metric(f"Posted · {prior_label}", int(prior_kpis["n_posted"]))
+        posted_delta = int(current_kpis["n_posted"]) - int(prior_kpis["n_posted"])
+        mom_cols[1].metric(
+            f"Posted · {current_label}",
+            int(current_kpis["n_posted"]),
+            delta=posted_delta,
+            help="Change in number of admitted creators who posted, vs prior admit month.",
+        )
+        mom_cols[2].metric(f"First sale · {prior_label}", int(prior_kpis["n_first_sale"]))
+        sale_delta = int(current_kpis["n_first_sale"]) - int(prior_kpis["n_first_sale"])
+        mom_cols[3].metric(
+            f"First sale · {current_label}",
+            int(current_kpis["n_first_sale"]),
+            delta=sale_delta,
+            help="Change in number of admitted creators with a first sale, vs prior admit month.",
+        )
+
         st.dataframe(
-            month_over_month_table(prior_label, current_label, prior_kpis, current_kpis),
+            month_over_month_activation_table(
+                prior_label, current_label, prior_kpis, current_kpis
+            ),
             use_container_width=True,
             hide_index=True,
         )
+
+        with st.expander("All month-over-month metrics (gifts, rates, spend)"):
+            st.dataframe(
+                month_over_month_table(prior_label, current_label, prior_kpis, current_kpis),
+                use_container_width=True,
+                hide_index=True,
+            )
 
     cohort_email_log = [entry for entry in email_log if entry.creator_id in selected_creator_ids]
     render_cohort_activation_status(

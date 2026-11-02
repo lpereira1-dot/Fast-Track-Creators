@@ -84,6 +84,43 @@ def format_currency_delta(current: float, prior: float) -> str:
     return f"${delta:+,.0f} ({pct:+.1f}%)"
 
 
+def month_over_month_activation_table(
+    prior_label: str,
+    current_label: str,
+    prior: dict[str, float | int | None],
+    current: dict[str, float | int | None],
+) -> pd.DataFrame:
+    """Posted / first-sale counts for admit-month cohorts (MoM focus)."""
+
+    rows = [
+        {
+            "Metric": "Creators admitted",
+            prior_label: prior["n_creators"],
+            current_label: current["n_creators"],
+            "Change vs prior month": format_count_delta(
+                int(current["n_creators"]), int(prior["n_creators"])
+            ),
+        },
+        {
+            "Metric": "Posted (at least once)",
+            prior_label: prior["n_posted"],
+            current_label: current["n_posted"],
+            "Change vs prior month": format_count_delta(
+                int(current["n_posted"]), int(prior["n_posted"])
+            ),
+        },
+        {
+            "Metric": "First sale",
+            prior_label: prior["n_first_sale"],
+            current_label: current["n_first_sale"],
+            "Change vs prior month": format_count_delta(
+                int(current["n_first_sale"]), int(prior["n_first_sale"])
+            ),
+        },
+    ]
+    return pd.DataFrame(rows)
+
+
 def month_over_month_table(
     prior_label: str,
     current_label: str,
