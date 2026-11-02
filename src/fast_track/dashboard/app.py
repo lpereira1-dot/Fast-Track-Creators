@@ -40,6 +40,11 @@ for _key, _value in _secrets.items():
     os.environ.setdefault(_key, str(_value))
 
 from fast_track.config import get_settings  # noqa: E402
+from fast_track.dashboard.cohort_kpis import (  # noqa: E402
+    cohort_month_kpis,
+    month_over_month_table,
+    previous_month_start,
+)
 from fast_track.dashboard.db_sync import sync_db_from_github_artifact  # noqa: E402
 from fast_track.dashboard.filters import (  # noqa: E402
     creator_ids_for_admit_month,
@@ -64,7 +69,7 @@ st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layou
 
 # Bumped when dashboard behavior changes -- visible in the sidebar so you
 # can confirm Streamlit Cloud picked up a new deploy after merging.
-_DASHBOARD_BUILD = "2026-11-02-v2"
+_DASHBOARD_BUILD = "2026-11-02-v3"
 
 
 @st.cache_data(ttl=300)
@@ -433,6 +438,8 @@ def main() -> None:
     selected_cohorts: list[date] = []
     selected_creator_ids: set[str] = set()
     admit_filter_label = ""
+    admit_filter = "Month"
+    selected_month_start: date | None = None
 
     if cohort_weeks:
         default_cohorts = _default_cohort_weeks(cohort_weeks, awards, week_start_weekday)
@@ -488,6 +495,7 @@ def main() -> None:
                     month_start_by_label = {label: start for start, label in month_options}
                     picked_month = st.selectbox("Month (joined)", options=month_labels)
                     month_start = month_start_by_label[picked_month]
+                    selected_month_start = month_start
                     selected_creator_ids = creator_ids_for_admit_month(month_start, creators)
                     admit_filter_label = picked_month
                     selected_cohorts = sorted(
@@ -531,6 +539,29 @@ def main() -> None:
     cohort_creators = [
         creator for creator in creators if creator.creator_id in selected_creator_ids
     ]
+
+    if admit_filter == "Month" and selected_month_start is not None:
+        prior_start = previous_month_start(selected_month_start)
+        prior_label = prior_start.strftime("%B %Y")
+        current_label = selected_month_start.strftime("%B %Y")
+        prior_ids = creator_ids_for_admit_month(prior_start, creators)
+        prior_kpis = cohort_month_kpis(
+            prior_ids, creators, first_posts, first_sale_dates, awards
+        )
+        current_kpis = cohort_month_kpis(
+            selected_creator_ids, creators, first_posts, first_sale_dates, awards
+        )
+        st.subheader("Month over month")
+        st.caption(
+            f"Change from **{prior_label}** (prior month) to **{current_label}** "
+            "(selected month). All rows use creators by program admit date."
+        )
+        st.dataframe(
+            month_over_month_table(prior_label, current_label, prior_kpis, current_kpis),
+            use_container_width=True,
+            hide_index=True,
+        )
+
     cohort_email_log = [entry for entry in email_log if entry.creator_id in selected_creator_ids]
     render_cohort_activation_status(
         cohort_creators,
