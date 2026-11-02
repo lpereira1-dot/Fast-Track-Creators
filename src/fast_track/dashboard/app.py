@@ -41,6 +41,11 @@ for _key, _value in _secrets.items():
 
 from fast_track.config import get_settings  # noqa: E402
 from fast_track.dashboard.db_sync import sync_db_from_github_artifact  # noqa: E402
+from fast_track.dashboard.filters import (  # noqa: E402
+    creator_ids_for_admit_month,
+    creator_ids_for_admit_week,
+    joined_month_options,
+)
 from fast_track.dashboard.metrics import (  # noqa: E402
     build_daily_offsets,
     build_gift_events,
@@ -59,7 +64,7 @@ st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layou
 
 # Bumped when dashboard behavior changes -- visible in the sidebar so you
 # can confirm Streamlit Cloud picked up a new deploy after merging.
-_DASHBOARD_BUILD = "2026-09-03-v1"
+_DASHBOARD_BUILD = "2026-11-02-v1"
 
 
 @st.cache_data(ttl=300)
@@ -435,17 +440,71 @@ def main() -> None:
                 label = f"This week ({label})"
             return f"{label} — {count} creator(s)"
 
-        cohort_col, _spacer = st.columns([2, 3])
-        with cohort_col:
-            selected_cohorts = st.multiselect(
-                "Cohort week (admitted)",
-                options=cohort_weeks,
-                default=default_cohorts,
-                format_func=_format_cohort_week,
-                help="Filter email status and gift retention to creators admitted in the selected week(s).",
+        filter_col, _spacer = st.columns([2, 3])
+        with filter_col:
+            admit_filter = st.radio(
+                "Admitted creators",
+                options=["Week", "Month", "Multiple cohort weeks"],
+                horizontal=True,
+                help=(
+                    "Filter activation status, emails, and gift retention by "
+                    "when creators joined the program (CreatorIQ admit date)."
+                ),
             )
+
+            selected_cohorts: list[date] = []
+            selected_creator_ids: set[str] = set()
+            admit_filter_label = ""
+
+            if admit_filter == "Week":
+                default_day = default_cohorts[0] if default_cohorts else date.today()
+                week_pick = st.date_input(
+                    "Week (pick any day in that week)",
+                    value=default_day,
+                    min_value=cohort_weeks[0],
+                    max_value=cohort_weeks[-1] + timedelta(days=6),
+                )
+                selected_creator_ids, week_start = creator_ids_for_admit_week(
+                    week_pick, cohorts_by_week, week_start_weekday
+                )
+                if week_start in cohort_weeks:
+                    selected_cohorts = [week_start]
+                admit_filter_label = f"Week of {week_start.strftime('%b %d, %Y')}"
+            elif admit_filter == "Month":
+                month_options = joined_month_options(creators)
+                if month_options:
+                    month_labels = [label for _, label in month_options]
+                    month_start_by_label = {label: start for start, label in month_options}
+                    picked_month = st.selectbox("Month (joined)", options=month_labels)
+                    month_start = month_start_by_label[picked_month]
+                    selected_creator_ids = creator_ids_for_admit_month(month_start, creators)
+                    admit_filter_label = picked_month
+                    selected_cohorts = sorted(
+                        {
+                            c.cohort_week_start(week_start_weekday)
+                            for c in creators
+                            if c.creator_id in selected_creator_ids
+                        }
+                    )
+                else:
+                    st.info("No creators in the roster yet.")
+            else:
+                selected_cohorts = st.multiselect(
+                    "Cohort week (admitted)",
+                    options=cohort_weeks,
+                    default=default_cohorts,
+                    format_func=_format_cohort_week,
+                )
+                selected_creator_ids = {
+                    creator.creator_id
+                    for week in selected_cohorts
+                    for creator in cohorts_by_week.get(week, [])
+                }
+                admit_filter_label = f"{len(selected_cohorts)} cohort week(s)"
     else:
         selected_cohorts = []
+        selected_creator_ids = set()
+        admit_filter_label = ""
         if github_configured:
             st.info(
                 "No creators in the roster yet. Run the weekly cohort job (Tuesdays) "
@@ -458,8 +517,7 @@ def main() -> None:
         st.header("Filters")
         if cohort_weeks:
             st.caption(
-                f"Viewing {sum(len(cohorts_by_week.get(w, [])) for w in selected_cohorts)} "
-                f"creator(s) across {len(selected_cohorts)} selected cohort week(s)."
+                f"Viewing {len(selected_creator_ids)} creator(s) · {admit_filter_label or 'no filter'}"
             )
         else:
             st.caption("No cohort weeks available yet.")
@@ -472,11 +530,6 @@ def main() -> None:
             step=1,
         )
 
-    selected_creator_ids = {
-        creator.creator_id
-        for week in selected_cohorts
-        for creator in cohorts_by_week.get(week, [])
-    }
     cohort_creators = [
         creator for creator in creators if creator.creator_id in selected_creator_ids
     ]
