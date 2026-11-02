@@ -70,7 +70,7 @@ st.set_page_config(page_title="Fast Track Creators - Gift Card Retention", layou
 
 # Bumped when dashboard behavior changes -- visible in the sidebar so you
 # can confirm Streamlit Cloud picked up a new deploy after merging.
-_DASHBOARD_BUILD = "2026-11-02-v4"
+_DASHBOARD_BUILD = "2026-11-02-v5"
 
 
 @st.cache_data(ttl=300)
@@ -240,6 +240,59 @@ _EMAIL_TYPE_LABELS = {
     "sale_reminder": "Sale reminder",
     "sale_congrats": "Sale congrats",
 }
+
+
+def render_month_over_month_block(
+    selected_month_start: date,
+    creators: list[Creator],
+    first_posts: dict[str, date],
+    first_sale_dates: dict[str, date],
+    awards: list[GiftAward],
+    selected_creator_ids: set[str],
+) -> None:
+    prior_start = previous_month_start(selected_month_start)
+    prior_label = prior_start.strftime("%B %Y")
+    current_label = selected_month_start.strftime("%B %Y")
+    prior_ids = creator_ids_for_admit_month(prior_start, creators)
+    prior_kpis = cohort_month_kpis(prior_ids, creators, first_posts, first_sale_dates, awards)
+    current_kpis = cohort_month_kpis(
+        selected_creator_ids, creators, first_posts, first_sale_dates, awards
+    )
+
+    st.subheader("Month over month — posted & sold")
+    st.caption(
+        f"Among creators who **joined** in **{prior_label}** vs **{current_label}**: "
+        "how many posted or made a first sale (vs the prior admit month)."
+    )
+
+    mom_cols = st.columns(4)
+    mom_cols[0].metric(f"Posted · {prior_label}", int(prior_kpis["n_posted"]))
+    posted_delta = int(current_kpis["n_posted"]) - int(prior_kpis["n_posted"])
+    mom_cols[1].metric(
+        f"Posted · {current_label}",
+        int(current_kpis["n_posted"]),
+        delta=posted_delta,
+    )
+    mom_cols[2].metric(f"First sale · {prior_label}", int(prior_kpis["n_first_sale"]))
+    sale_delta = int(current_kpis["n_first_sale"]) - int(prior_kpis["n_first_sale"])
+    mom_cols[3].metric(
+        f"First sale · {current_label}",
+        int(current_kpis["n_first_sale"]),
+        delta=sale_delta,
+    )
+
+    st.dataframe(
+        month_over_month_activation_table(prior_label, current_label, prior_kpis, current_kpis),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    with st.expander("All month-over-month metrics (gifts, rates, spend)"):
+        st.dataframe(
+            month_over_month_table(prior_label, current_label, prior_kpis, current_kpis),
+            use_container_width=True,
+            hide_index=True,
+        )
 
 
 def render_cohort_activation_status(
@@ -451,6 +504,83 @@ def main() -> None:
             if week_start == current_cohort_week:
                 label = f"This week ({label})"
             return f"{label} — {count} creator(s)"
+
+        st.subheader("Filter by admit date")
+        admit_filter = st.radio(
+            "Show creators who joined in",
+            options=["Week", "Month", "Multiple cohort weeks"],
+            index=1,
+            horizontal=True,
+            label_visibility="collapsed",
+        )
+
+        if admit_filter == "Week":
+            default_day = default_cohorts[0] if default_cohorts else date.today()
+            week_pick = st.date_input(
+                "Week (pick any day in that week)",
+                value=default_day,
+                min_value=cohort_weeks[0],
+                max_value=cohort_weeks[-1] + timedelta(days=6),
+            )
+            selected_creator_ids, week_start = creator_ids_for_admit_week(
+                week_pick, cohorts_by_week, week_start_weekday
+            )
+            if week_start in cohort_weeks:
+                selected_cohorts = [week_start]
+            admit_filter_label = f"Week of {week_start.strftime('%b %d, %Y')}"
+        elif admit_filter == "Month":
+            month_options = joined_month_options(creators)
+            if month_options:
+                month_labels = [label for _, label in month_options]
+                month_start_by_label = {label: start for start, label in month_options}
+                picked_month = st.selectbox(
+                    "Month (joined) — compared to the prior month below",
+                    options=month_labels,
+                )
+                selected_month_start = month_start_by_label[picked_month]
+                selected_creator_ids = creator_ids_for_admit_month(selected_month_start, creators)
+                admit_filter_label = picked_month
+                selected_cohorts = sorted(
+                    {
+                        c.cohort_week_start(week_start_weekday)
+                        for c in creators
+                        if c.creator_id in selected_creator_ids
+                    }
+                )
+                render_month_over_month_block(
+                    selected_month_start,
+                    creators,
+                    first_posts,
+                    first_sale_dates,
+                    awards,
+                    selected_creator_ids,
+                )
+            else:
+                st.info("No creators in roster yet.")
+        else:
+            selected_cohorts = st.multiselect(
+                "Cohort week (admitted)",
+                options=cohort_weeks,
+                default=default_cohorts,
+                format_func=_format_cohort_week,
+            )
+            selected_creator_ids = {
+                creator.creator_id
+                for week in selected_cohorts
+                for creator in cohorts_by_week.get(week, [])
+            }
+            admit_filter_label = f"{len(selected_cohorts)} cohort week(s)"
+            st.caption(
+                "Month-over-month posted & sold appears when **Month** is selected above."
+            )
+
+        if admit_filter != "Month":
+            st.caption(
+                f"Viewing {len(selected_creator_ids)} creator(s)"
+                + (f" · {admit_filter_label}" if admit_filter_label else "")
+            )
+        elif admit_filter_label:
+            st.caption(f"Viewing {len(selected_creator_ids)} creator(s) · {admit_filter_label}")
     else:
         default_cohorts = []
         if github_configured:
@@ -463,71 +593,8 @@ def main() -> None:
 
     with st.sidebar:
         st.header("Filters")
-        if cohort_weeks:
-            admit_filter = st.radio(
-                "Admitted creators",
-                options=["Week", "Month", "Multiple cohort weeks"],
-                index=1,
-                help=(
-                    "Filter activation status, emails, and gift retention by "
-                    "when creators joined the program (CreatorIQ admit date). "
-                    "Choose Month to filter by calendar month."
-                ),
-            )
-
-            if admit_filter == "Week":
-                default_day = default_cohorts[0] if default_cohorts else date.today()
-                week_pick = st.date_input(
-                    "Week (pick any day in that week)",
-                    value=default_day,
-                    min_value=cohort_weeks[0],
-                    max_value=cohort_weeks[-1] + timedelta(days=6),
-                )
-                selected_creator_ids, week_start = creator_ids_for_admit_week(
-                    week_pick, cohorts_by_week, week_start_weekday
-                )
-                if week_start in cohort_weeks:
-                    selected_cohorts = [week_start]
-                admit_filter_label = f"Week of {week_start.strftime('%b %d, %Y')}"
-            elif admit_filter == "Month":
-                month_options = joined_month_options(creators)
-                if month_options:
-                    month_labels = [label for _, label in month_options]
-                    month_start_by_label = {label: start for start, label in month_options}
-                    picked_month = st.selectbox("Month (joined)", options=month_labels)
-                    month_start = month_start_by_label[picked_month]
-                    selected_month_start = month_start
-                    selected_creator_ids = creator_ids_for_admit_month(month_start, creators)
-                    admit_filter_label = picked_month
-                    selected_cohorts = sorted(
-                        {
-                            c.cohort_week_start(week_start_weekday)
-                            for c in creators
-                            if c.creator_id in selected_creator_ids
-                        }
-                    )
-                else:
-                    st.caption("No creators in roster yet.")
-            else:
-                selected_cohorts = st.multiselect(
-                    "Cohort week (admitted)",
-                    options=cohort_weeks,
-                    default=default_cohorts,
-                    format_func=_format_cohort_week,
-                )
-                selected_creator_ids = {
-                    creator.creator_id
-                    for week in selected_cohorts
-                    for creator in cohorts_by_week.get(week, [])
-                }
-                admit_filter_label = f"{len(selected_cohorts)} cohort week(s)"
-
-            st.caption(
-                f"Viewing {len(selected_creator_ids)} creator(s)"
-                + (f" · {admit_filter_label}" if admit_filter_label else "")
-            )
-        else:
-            st.caption("No cohort weeks available yet.")
+        if cohort_weeks and admit_filter_label:
+            st.caption(f"{len(selected_creator_ids)} creator(s) · {admit_filter_label}")
 
         window_days = st.slider(
             "Retention window (days pre/post gift)",
@@ -540,56 +607,6 @@ def main() -> None:
     cohort_creators = [
         creator for creator in creators if creator.creator_id in selected_creator_ids
     ]
-
-    if admit_filter == "Month" and selected_month_start is not None:
-        prior_start = previous_month_start(selected_month_start)
-        prior_label = prior_start.strftime("%B %Y")
-        current_label = selected_month_start.strftime("%B %Y")
-        prior_ids = creator_ids_for_admit_month(prior_start, creators)
-        prior_kpis = cohort_month_kpis(
-            prior_ids, creators, first_posts, first_sale_dates, awards
-        )
-        current_kpis = cohort_month_kpis(
-            selected_creator_ids, creators, first_posts, first_sale_dates, awards
-        )
-        st.subheader("Month over month — posted & sold")
-        st.caption(
-            f"Creators who **joined** in **{prior_label}** vs **{current_label}**, "
-            "and how many have posted or made a first sale (same definitions as activation status below)."
-        )
-
-        mom_cols = st.columns(4)
-        mom_cols[0].metric(f"Posted · {prior_label}", int(prior_kpis["n_posted"]))
-        posted_delta = int(current_kpis["n_posted"]) - int(prior_kpis["n_posted"])
-        mom_cols[1].metric(
-            f"Posted · {current_label}",
-            int(current_kpis["n_posted"]),
-            delta=posted_delta,
-            help="Change in number of admitted creators who posted, vs prior admit month.",
-        )
-        mom_cols[2].metric(f"First sale · {prior_label}", int(prior_kpis["n_first_sale"]))
-        sale_delta = int(current_kpis["n_first_sale"]) - int(prior_kpis["n_first_sale"])
-        mom_cols[3].metric(
-            f"First sale · {current_label}",
-            int(current_kpis["n_first_sale"]),
-            delta=sale_delta,
-            help="Change in number of admitted creators with a first sale, vs prior admit month.",
-        )
-
-        st.dataframe(
-            month_over_month_activation_table(
-                prior_label, current_label, prior_kpis, current_kpis
-            ),
-            use_container_width=True,
-            hide_index=True,
-        )
-
-        with st.expander("All month-over-month metrics (gifts, rates, spend)"):
-            st.dataframe(
-                month_over_month_table(prior_label, current_label, prior_kpis, current_kpis),
-                use_container_width=True,
-                hide_index=True,
-            )
 
     cohort_email_log = [entry for entry in email_log if entry.creator_id in selected_creator_ids]
     render_cohort_activation_status(
