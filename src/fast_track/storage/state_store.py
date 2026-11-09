@@ -314,6 +314,15 @@ class StateStore:
         )
         self._conn.commit()
 
+    def clear_email_sent(self, creator_id: str, email_type: str) -> None:
+        """Remove a send record (used when a one-time email failed after pre-recording)."""
+
+        self._conn.execute(
+            "DELETE FROM creator_emails WHERE creator_id = ? AND email_type = ?",
+            (creator_id, email_type),
+        )
+        self._conn.commit()
+
     def lifecycle_email_log_count(self) -> int:
         row = self._conn.execute("SELECT COUNT(*) AS n FROM creator_emails").fetchone()
         return int(row["n"])

@@ -58,6 +58,8 @@ jobs:
           # This is a fixed launch marker, not meant to move -- update it
           # only if the actual launch date changes before go-live.
           CREATOR_EMAIL_MIN_JOIN_DATE: "2026-08-17"
+          # Post/sale reminders repeat at this interval (days), not every daily run.
+          CREATOR_EMAIL_REMINDER_INTERVAL_DAYS: "4"
         run: |
           ARGS=""
           if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="--dry-run"; fi

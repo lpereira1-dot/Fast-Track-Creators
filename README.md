@@ -288,7 +288,7 @@ the email copy:
 | # | Email | Trigger | Repeats? |
 |---|---|---|---|
 | 1 | Welcome / bonus intro | Once, as soon as possible after joining | No |
-| 2 | Posted, no sale yet | As soon as a first post is detected | Every `CREATOR_EMAIL_REMINDER_INTERVAL_DAYS` (default 2) until a qualifying sale or day 14 |
+| 2 | Posted, no sale yet | As soon as a first post is detected | Every `CREATOR_EMAIL_REMINDER_INTERVAL_DAYS` (default 4) until a qualifying sale or day 14 |
 | 3 | Still hasn't posted | Starting `CREATOR_EMAIL_POST_REMINDER_START_DAY` (default day 7) | Every `CREATOR_EMAIL_REMINDER_INTERVAL_DAYS` until a post or day 14 |
 | 4 | First sale congrats | As soon as a *qualifying* first sale is detected | No |
 

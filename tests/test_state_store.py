@@ -97,6 +97,8 @@ def test_record_email_sent_and_last_email_sent_at(tmp_path):
         assert store.last_email_sent_at("c-1", "welcome") is None
         store.record_email_sent("c-1", "welcome", sent_at=date(2026, 7, 1))
         assert store.last_email_sent_at("c-1", "welcome") == date(2026, 7, 1)
+        store.clear_email_sent("c-1", "welcome")
+        assert store.last_email_sent_at("c-1", "welcome") is None
 
 
 def test_record_email_sent_updates_last_sent_and_count(tmp_path):

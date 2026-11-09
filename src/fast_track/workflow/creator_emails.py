@@ -48,6 +48,9 @@ SALE_REMINDER = "sale_reminder"
 POST_REMINDER = "post_reminder"
 SALE_CONGRATS = "sale_congrats"
 
+# One-time lifecycle emails must never repeat when send history is lost between
+# CI runs; record before calling CreatorIQ, then roll back if the send fails.
+_ONE_TIME_EMAIL_TYPES = frozenset({WELCOME, SALE_CONGRATS})
 # Drip: at most one lifecycle email per creator per daily run (highest priority wins).
 _EMAIL_PRIORITY = (SALE_CONGRATS, WELCOME, SALE_REMINDER, POST_REMINDER)
 
@@ -184,6 +187,13 @@ def run_creator_email_job(
     else:
         for email_type, recipients in groups.items():
             subject, body = content_by_type[email_type]
+            pre_recorded: list[str] = []
+            if email_type in _ONE_TIME_EMAIL_TYPES:
+                for creator in recipients:
+                    if store.last_email_sent_at(creator.creator_id, email_type) is not None:
+                        continue
+                    store.record_email_sent(creator.creator_id, email_type, today)
+                    pre_recorded.append(creator.creator_id)
             try:
                 email_sender.send_bulk_email(subject, body, [c.creator_id for c in recipients])
             except Exception:
@@ -192,9 +202,13 @@ def run_creator_email_job(
                     email_type,
                     len(recipients),
                 )
+                if email_type in _ONE_TIME_EMAIL_TYPES:
+                    for creator_id in pre_recorded:
+                        store.clear_email_sent(creator_id, email_type)
                 continue
             for creator in recipients:
-                store.record_email_sent(creator.creator_id, email_type, today)
+                if email_type not in _ONE_TIME_EMAIL_TYPES:
+                    store.record_email_sent(creator.creator_id, email_type, today)
                 sent.append((creator, email_type))
 
     return CreatorEmailJobResult(creators_checked=len(creators), sent=sent, dry_run=dry_run)

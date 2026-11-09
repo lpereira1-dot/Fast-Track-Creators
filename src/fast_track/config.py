@@ -176,6 +176,9 @@ class CreatorIQConfig:
         return bool(self.api_key and self.base_url)
 
 
+_DEFAULT_REMINDER_INTERVAL_DAYS = 4
+
+
 @dataclass(frozen=True)
 class CreatorEmailConfig:
     """Settings for the creator lifecycle email reminders.
@@ -192,7 +195,9 @@ class CreatorEmailConfig:
 
     # How often an unresolved reminder (post or sale) repeats.
     reminder_interval_days: int = field(
-        default_factory=lambda: _env_int("CREATOR_EMAIL_REMINDER_INTERVAL_DAYS", 2)
+        default_factory=lambda: _env_int(
+            "CREATOR_EMAIL_REMINDER_INTERVAL_DAYS", _DEFAULT_REMINDER_INTERVAL_DAYS
+        )
     )
     # Day (since joining) the "still hasn't posted" reminder starts.
     post_reminder_start_day: int = field(
