@@ -90,10 +90,10 @@ def test_post_reminder_repeats_after_interval_but_not_before(tmp_path):
         client = FakeActivationClient({})
         sender = FakeEmailSender()
 
-        result_early = run_creator_email_job(client, sender, store, _settings(), today=date(2026, 8, 9))
+        result_early = run_creator_email_job(client, sender, store, _settings(), today=date(2026, 8, 11))
         assert result_early.sent == []
 
-        result_due = run_creator_email_job(client, sender, store, _settings(), today=date(2026, 8, 10))
+        result_due = run_creator_email_job(client, sender, store, _settings(), today=date(2026, 8, 12))
         assert [(c.creator_id, t) for c, t in result_due.sent] == [("c-1", POST_REMINDER)]
 
 
@@ -124,10 +124,10 @@ def test_sale_reminder_repeats_after_interval_but_not_before(tmp_path):
         client = FakeActivationClient({"c-1": activation})
         sender = FakeEmailSender()
 
-        result_early = run_creator_email_job(client, sender, store, _settings(), today=date(2026, 8, 4))
+        result_early = run_creator_email_job(client, sender, store, _settings(), today=date(2026, 8, 6))
         assert result_early.sent == []
 
-        result_due = run_creator_email_job(client, sender, store, _settings(), today=date(2026, 8, 5))
+        result_due = run_creator_email_job(client, sender, store, _settings(), today=date(2026, 8, 7))
         assert [(c.creator_id, t) for c, t in result_due.sent] == [("c-1", SALE_REMINDER)]
 
 
@@ -291,6 +291,22 @@ def test_drip_sends_only_one_email_type_per_creator_per_run(tmp_path):
 
     assert [(c.creator_id, t) for c, t in result.sent] == [("c-1", WELCOME)]
     assert len(sender.sent) == 1
+
+
+def test_welcome_pre_recorded_before_send(tmp_path):
+    creator = _creator("c-1", "2026-08-01T00:00:00Z")
+
+    class RecordBeforeSendSender(FakeEmailSender):
+        def send_bulk_email(self, subject, html_body, creator_ids):
+            with StateStore(tmp_path / "state.db") as store:
+                assert store.last_email_sent_at("c-1", WELCOME) == date(2026, 8, 1)
+            return super().send_bulk_email(subject, html_body, creator_ids)
+
+    with StateStore(tmp_path / "state.db") as store:
+        store.upsert_creators([creator])
+        client = FakeActivationClient({})
+        sender = RecordBeforeSendSender()
+        run_creator_email_job(client, sender, store, _settings(), today=date(2026, 8, 1))
 
 
 def test_send_failure_does_not_record_and_is_retried_next_run(tmp_path):
